@@ -1916,14 +1916,16 @@ public class Unobfuscator {
 
     public synchronized static Method loadPlaybackSpeed(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            for (var str : List.of("heroaudioplayer/setPlaybackSpeed", "heroaudioplayer/set_playback_speed")) {
+            for (var str : List.of("heroaudioplayer/setPlaybackSpeed", "heroaudioplayer/set_playback_speed", "heroaudioplayer/setPlaybackParameters")) {
                 var method = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, str);
                 if (method != null) return method;
             }
 
-            var methodData = dexkit.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().name("setPlaybackSpeed", StringMatchType.EndsWith).paramCount(2).paramTypes(null, float.class)));
-            if (!methodData.isEmpty()) return methodData.get(0).getMethodInstance(classLoader);
+            // Fallback for newer versions
+            var methodDataList = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().addUsingString("heroaudioplayer", StringMatchType.Contains)
+                            .paramCount(2).paramTypes(null, float.class)));
+            if (!methodDataList.isEmpty()) return methodDataList.get(0).getMethodInstance(classLoader);
 
             throw new RuntimeException("PlaybackSpeed method not found");
         });
@@ -2262,9 +2264,17 @@ public class Unobfuscator {
 
     public static Method loadMediaQualitySelectionMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            for (var str : List.of("enable_media_quality_tool", "show_media_quality_toggle", "settings_media_quality", "media_quality_upsell")) {
+            for (var str : List.of(
+                    "enable_media_quality_tool",
+                    "show_media_quality_toggle",
+                    "settings_media_quality",
+                    "media_quality_upsell",
+                    "media_quality_v2",
+                    "hd_quality_selection",
+                    "hd_quality"
+            )) {
                 var methodData = dexkit.findMethod(FindMethod.create().matcher(
-                        MethodMatcher.create().addUsingString(str).returnType(boolean.class)));
+                        MethodMatcher.create().addUsingString(str, StringMatchType.Contains).returnType(boolean.class)));
                 if (!methodData.isEmpty()) return methodData.get(0).getMethodInstance(classLoader);
             }
 
