@@ -2281,18 +2281,35 @@ public class Unobfuscator {
                     "video_quality",
                     "image_quality",
                     "high_quality_storage",
-                    "media_quality_selection"
+                    "media_quality_selection",
+                    "media_upload_quality",
+                    "upload_quality",
+                    "media_quality_setting",
+                    "quality_selection_tool",
+                    "media_quality_v3",
+                    "hd_quality_v2"
             )) {
                 var methodData = dexkit.findMethod(FindMethod.create().matcher(
                         MethodMatcher.create().addUsingString(str, StringMatchType.Contains).returnType(boolean.class)));
                 if (!methodData.isEmpty()) return methodData.get(0).getMethodInstance(classLoader);
             }
 
-            // Fallback for newer versions
-            var methodData = dexkit.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().modifiers(Modifier.PUBLIC)
-                            .returnType(boolean.class).name("MediaQuality", StringMatchType.Contains)));
-            if (!methodData.isEmpty()) return methodData.get(0).getMethodInstance(classLoader);
+            // Fallback for newer versions: any boolean method using "media_quality"
+            var methodDataList = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().addUsingString("media_quality", StringMatchType.Contains).returnType(boolean.class)));
+            if (!methodDataList.isEmpty()) return methodDataList.get(0).getMethodInstance(classLoader);
+
+            // Even broader fallback: any method using "media_quality" regardless of return type (though we hope it's boolean)
+            methodDataList = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().addUsingString("media_quality", StringMatchType.Contains)));
+            if (!methodDataList.isEmpty()) {
+                for (var md : methodDataList) {
+                    if (md.getReturnType().equals("Z")) { // Z means boolean in descriptor
+                        return md.getMethodInstance(classLoader);
+                    }
+                }
+                return methodDataList.get(0).getMethodInstance(classLoader);
+            }
 
             throw new RuntimeException("MediaQualitySelection method not found");
         });
