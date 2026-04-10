@@ -4,16 +4,16 @@ bcpkix-jdk18on = "1.83"
 betterypermissionhelper = "1.0.3"
 documentfile = "1.1.0"
 filepicker = "9.2.5"
-flatbuffers = "23.5.26"
+flatbuffers = "25.2.10"
 jstyleparser = "4.0.1"
-lombok = "1.18.42"
+lombok = "1.18.44"
 okhttp = "5.3.2"
 xposed-legacy = "82"
-agp = "8.13.2"
+agp = "9.1.0"
 colorpicker = "1.1.0"
 dexkit = "2.0.7"
-nav = "2.9.6"
-kotlin = "2.2.21"
+nav = "2.9.7"
+kotlin = "2.3.20"
 markwon = "4.6.2"
 
 [libraries]
@@ -27,7 +27,7 @@ flatbuffers = { module = "com.google.flatbuffers:flatbuffers-java", version.ref 
 jstyleparser = { module = "net.sf.cssbox:jstyleparser", version.ref = "jstyleparser" }
 libxposed-legacy = { group = "de.robv.android.xposed", name = "api", version.ref = "xposed-legacy" }
 
-androidx-activity = { module = "androidx.activity:activity", version = "1.12.0" }
+androidx-activity = { module = "androidx.activity:activity", version = "1.13.0" }
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version = "2.2.1" }
 androidx-fragment = { module = "androidx.fragment:fragment", version = "1.8.9" }
 androidx-navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment", version.ref = "nav" }
@@ -37,7 +37,7 @@ lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 rikkax-appcompat = { module = "dev.rikka.rikkax.appcompat:appcompat", version = "1.6.1" }
 rikkax-core = { module = "dev.rikka.rikkax.core:core", version = "1.4.1" }
-rikkax-material = { module = "dev.rikka.rikkax.material:material", version = "2.7.0" }
+rikkax-material = { module = "dev.rikka.rikkax.material:material", version = "2.7.2" }
 rikkax-material-preference = { module = "dev.rikka.rikkax.material:material-preference", version = "2.0.0" }
 rikkax-widget-borderview = { module = "dev.rikka.rikkax.widget:borderview", version = "1.1.0" }
 material = { module = "com.google.android.material:material", version = "1.13.0" }
