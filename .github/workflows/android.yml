@@ -9,8 +9,9 @@ jobs:
     permissions: write-all
     runs-on: ubuntu-latest
     env:
-      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-      CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+      BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.BOT_TOKEN }}
+      CHANNEL_ID: ${{ secrets.MESSAGE_ID || secrets.CHANNEL_ID }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !contains(github.event.head_commit.message, 'Merge')
     steps:
       - uses: actions/checkout@v6
@@ -64,7 +65,7 @@ jobs:
       - name: Upload to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.GH_TOKEN }}
           name: WaEnhancer ${{ env.SHORT_SHA }}
           body_path: changelog.txt
           files: |
@@ -73,7 +74,7 @@ jobs:
           tag_name: debug-${{ env.SHORT_SHA }}
 
       - name: Read changelog
-        if: ${{ success() && github.ref == 'refs/heads/master' && github.ref_type != 'tag' && env.BOT_TOKEN != '' }}
+        if: ${{ success() && env.BOT_TOKEN != '' && env.CHANNEL_ID != '' }}
         id: changelog
         uses: actions/github-script@v8
         with:
@@ -83,7 +84,7 @@ jobs:
             core.setOutput('content', changelog);
 
       - name: Post to Telegram channel
-        if: ${{ success() && github.ref == 'refs/heads/master' && github.ref_type != 'tag' && env.BOT_TOKEN != '' }}
+        if: ${{ success() && env.BOT_TOKEN != '' && env.CHANNEL_ID != '' }}
         uses: Dev4Mod/telegram-github-action@master
         with:
           to: ${{ env.CHANNEL_ID }}
@@ -96,7 +97,7 @@ jobs:
             Release: https://github.com/${{ github.repository }}/releases/tag/debug-${{ env.SHORT_SHA }}
 
       - name: Upload APKs to Telegram
-        if: ${{ success() && github.ref == 'refs/heads/master' && github.ref_type != 'tag' && env.BOT_TOKEN != '' }}
+        if: ${{ success() && env.BOT_TOKEN != '' && env.CHANNEL_ID != '' }}
         run: |
           curl -F document=@app/build/outputs/apk/whatsapp/debug/app-whatsapp-debug.apk \
                -F chat_id="${{ env.CHANNEL_ID }}" \
