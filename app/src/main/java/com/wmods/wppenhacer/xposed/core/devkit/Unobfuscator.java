@@ -397,11 +397,20 @@ public class Unobfuscator {
 
     public synchronized static Class<?> loadFMessageClass(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getClass(classLoader, () -> {
-            var messageClass = findFirstClassUsingStrings(classLoader, StringMatchType.Contains,
-                    "FMessage/getSenderUserJid/key.id");
-            if (messageClass == null)
-                throw new Exception("Message class not found");
-            return messageClass;
+            List<String> searchStrings = List.of(
+                    "FMessage/getSenderUserJid/key.id",
+                    "FMessage/getSenderUserJid",
+                    "FMessage/key.id",
+                    "FMessage("
+            );
+            for (var str : searchStrings) {
+                var messageClass = findFirstClassUsingStrings(classLoader, StringMatchType.Contains, str);
+                if (messageClass != null) {
+                    XposedBridge.log("Core: Found FMessage class using string: " + str + " (" + messageClass.getName() + ")");
+                    return messageClass;
+                }
+            }
+            throw new Exception("Message class not found");
         });
     }
 
@@ -2300,12 +2309,20 @@ public class Unobfuscator {
 
     public static synchronized Class loadAbstractMediaMessageClass(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getClass(loader, () -> {
-            for (var str : List.of("first_viewed_timestamp", "Field is set but is null in MediaDataV2")) {
-                var classList = dexkit.findClass(FindClass.create().matcher(ClassMatcher.create().addUsingString(str)));
+            List<String> searchStrings = List.of(
+                    "first_viewed_timestamp",
+                    "Field is set but is null in MediaDataV2",
+                    "MediaDataV2",
+                    "AbstractMediaMessage Not Found"
+            );
+            for (var str : searchStrings) {
+                var classList = dexkit.findClass(FindClass.create().matcher(ClassMatcher.create().addUsingString(str, StringMatchType.Contains)));
                 for (var clazz : classList) {
                     var clazzInstance = clazz.getInstance(loader);
-                    if (FMessageWpp.checkUnsafeIsFMessage(loader, clazzInstance))
+                    if (FMessageWpp.checkUnsafeIsFMessage(loader, clazzInstance)) {
+                        XposedBridge.log("Media: Found AbstractMediaMessage using string: " + str + " (" + clazzInstance.getName() + ")");
                         return clazzInstance;
+                    }
                 }
             }
             throw new ClassNotFoundException("AbstractMediaMessage Not Found");

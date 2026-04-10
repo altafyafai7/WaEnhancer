@@ -172,16 +172,17 @@ public class FMessageWpp {
             if (!isMediaFile()) return null;
             for (var field : abstractMediaMessageClass.getDeclaredFields()) {
                 if (field.getType().isPrimitive()) continue;
-                var fileField = ReflectionUtils.getFieldByType(field.getType(), File.class);
+                var mediaObject = ReflectionUtils.getObjectField(field, fmessage);
+                if (mediaObject == null) continue;
+                var fileField = ReflectionUtils.findFieldUsingFilterIfExists(mediaObject.getClass(), f -> f.getType() == File.class);
                 if (fileField != null) {
-                    var mediaObject = ReflectionUtils.getObjectField(field, fmessage);
                     var mediaFile = (File) fileField.get(mediaObject);
                     if (mediaFile != null) return mediaFile;
-                    var filePath = MessageStore.getInstance().getMediaFromID(getRowId());
-                    if (filePath == null) return null;
-                    return new File(filePath);
                 }
             }
+            var filePath = MessageStore.getInstance().getMediaFromID(getRowId());
+            if (filePath == null) return null;
+            return new File(filePath);
         } catch (Exception e) {
             XposedBridge.log(e);
         }

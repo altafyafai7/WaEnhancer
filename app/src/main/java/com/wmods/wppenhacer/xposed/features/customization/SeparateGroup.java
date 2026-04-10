@@ -349,16 +349,18 @@ public class SeparateGroup extends Feature {
         }
 
         private boolean checkGroup(Object chat) {
-            var jid = getObjectField(chat, "A00");
-            if (jid == null) jid = getObjectField(chat, "A01");
-            if (jid == null) return true;
-            if (XposedHelpers.findMethodExactIfExists(jid.getClass(), "getServer") != null) {
-                var server = (String) callMethod(jid, "getServer");
-                if (isGroup)
-                    return server.equals("broadcast") || server.equals("g.us");
-                return server.equals("s.whatsapp.net") || server.equals("lid");
+            var jidField = ReflectionUtils.findFieldUsingFilterIfExists(chat.getClass(), f -> f.getType() == FMessageWpp.UserJid.TYPE_JID);
+            if (jidField == null) {
+                XposedBridge.log("SeparateGroup: JID field not found in " + chat.getClass().getName());
+                return true;
             }
-            return true;
+            var jidObject = ReflectionUtils.getObjectField(jidField, chat);
+            if (jidObject == null) return true;
+
+            var userJid = new FMessageWpp.UserJid(jidObject);
+            if (isGroup)
+                return userJid.isGroup() || userJid.isBroadcast();
+            return userJid.isContact();
         }
     }
 
