@@ -411,6 +411,11 @@ public class Unobfuscator {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
             var classData = dexkit.findClass(FindClass.create().searchPackages("X.")
                     .matcher(ClassMatcher.create().addUsingString("mainContainer")));
+            if (classData.isEmpty()) {
+                XposedBridge.log("SeparateGroup: mainContainer class search failed, trying fallback 1 (main_container)");
+                classData = dexkit.findClass(FindClass.create().searchPackages("X.")
+                        .matcher(ClassMatcher.create().addUsingString("main_container")));
+            }
             if (classData.isEmpty())
                 throw new Exception("mainContainer class not found");
             var classMain = classData.get(0).getInstance(classLoader);
@@ -418,17 +423,27 @@ public class Unobfuscator {
                     .filter(m -> m.getName().equals("onCreate")).findFirst().orElse(null);
             if (method == null)
                 throw new Exception("onCreate method not found");
+            XposedBridge.log("SeparateGroup: Found TabList onCreate in " + classMain.getName());
             return method;
         });
     }
 
     public synchronized static Method loadGetTabMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            Method result = findFirstMethodUsingStringsFilter(classLoader, "X.", StringMatchType.Contains,
-                    "No HomeFragment mapping for community tab id:");
-            if (result == null)
-                throw new Exception("GetTab method not found");
-            return result;
+            List<String> searchStrings = List.of(
+                    "No HomeFragment mapping for community tab id:",
+                    "No HomeFragment mapping for community tab",
+                    "No HomeFragment mapping for tab id:",
+                    "No HomeFragment mapping"
+            );
+            for (var str : searchStrings) {
+                Method result = findFirstMethodUsingStringsFilter(classLoader, "X.", StringMatchType.Contains, str);
+                if (result != null) {
+                    XposedBridge.log("SeparateGroup: Found GetTab using string: " + str);
+                    return result;
+                }
+            }
+            throw new Exception("GetTab method not found");
         });
     }
 
@@ -441,6 +456,7 @@ public class Unobfuscator {
                     .orElse(null);
             if (result == null)
                 throw new Exception("TabFragment method not found");
+            XposedBridge.log("SeparateGroup: Found TabFragment list method: " + result.getName());
             return result;
         });
     }
@@ -448,13 +464,29 @@ public class Unobfuscator {
     public synchronized static Method loadTabNameMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
             int id = UnobfuscatorCache.getInstance().getOfuscateIDString("updates");
-            if (id < 1)
-                throw new Exception("TabName ID not found");
-            MethodDataList result = dexkit.findMethod(
-                    FindMethod.create().matcher(MethodMatcher.create().returnType(String.class).usingNumbers(id)));
-            if (result.isEmpty())
-                throw new Exception("TabName method not found");
-            return result.get(0).getMethodInstance(classLoader);
+            if (id < 1) {
+                XposedBridge.log("SeparateGroup: 'updates' string ID not found in cache");
+            } else {
+                MethodDataList result = dexkit.findMethod(
+                        FindMethod.create().matcher(MethodMatcher.create().returnType(String.class).usingNumbers(id)));
+                if (!result.isEmpty()) return result.get(0).getMethodInstance(classLoader);
+            }
+
+            // Fallback for newer versions
+            XposedBridge.log("SeparateGroup: TabName discovery using 'updates' ID failed, trying broader search");
+            List<String> fallbackStrings = List.of("chats", "groups", "status", "calls");
+            for (var str : fallbackStrings) {
+                int fid = UnobfuscatorCache.getInstance().getOfuscateIDString(str);
+                if (fid > 0) {
+                    var result = dexkit.findMethod(FindMethod.create().matcher(
+                            MethodMatcher.create().returnType(String.class).usingNumbers(fid)));
+                    if (!result.isEmpty()) {
+                        XposedBridge.log("SeparateGroup: Found TabName using string: " + str);
+                        return result.get(0).getMethodInstance(classLoader);
+                    }
+                }
+            }
+            throw new Exception("TabName method not found");
         });
     }
 
@@ -481,21 +513,36 @@ public class Unobfuscator {
 
     public synchronized static Method loadTabCountMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            Method result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains,
-                    "required free space should be > 0");
-            if (result == null)
-                throw new Exception("TabCount method not found");
-            return result;
+            List<String> searchStrings = List.of(
+                    "required free space should be > 0",
+                    "required free space should be >",
+                    "required free space"
+            );
+            for (var str : searchStrings) {
+                Method result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, str);
+                if (result != null) {
+                    XposedBridge.log("SeparateGroup: Found TabCount using string: " + str);
+                    return result;
+                }
+            }
+            throw new Exception("TabCount method not found");
         });
     }
 
     public synchronized static Method loadEnableCountTabMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            var result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains,
-                    "Tried to set badge for invalid");
-            if (result == null)
-                throw new Exception("EnableCountTab method not found");
-            return result;
+            List<String> searchStrings = List.of(
+                    "Tried to set badge for invalid",
+                    "Tried to set badge"
+            );
+            for (var str : searchStrings) {
+                Method result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, str);
+                if (result != null) {
+                    XposedBridge.log("SeparateGroup: Found EnableCountTab using string: " + str);
+                    return result;
+                }
+            }
+            throw new Exception("EnableCountTab method not found");
         });
     }
 
@@ -736,9 +783,15 @@ public class Unobfuscator {
     public synchronized static Method loadMenuStatusMethod(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(loader, () -> {
             var id = Utils.getID("menuitem_conversations_message_contact", "id");
+            XposedBridge.log("MenuStatus: Searching for method using ID: " + Integer.toHexString(id) + " (menuitem_conversations_message_contact)");
             var methods = dexkit.findMethod(new FindMethod().matcher(new MethodMatcher().addUsingNumber(id)));
+            if (methods.isEmpty()) {
+                XposedBridge.log("MenuStatus: Initial ID search failed, trying broader matcher");
+                methods = dexkit.findMethod(FindMethod.create().matcher(MethodMatcher.create().addUsingNumber(id)));
+            }
             if (methods.isEmpty())
                 throw new Exception("MenuStatus method not found");
+            XposedBridge.log("MenuStatus: Found " + methods.size() + " candidates, using first: " + methods.get(0).getName());
             return methods.get(0).getMethodInstance(loader);
         });
     }
