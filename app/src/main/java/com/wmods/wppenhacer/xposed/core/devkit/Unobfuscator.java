@@ -2287,52 +2287,63 @@ public class Unobfuscator {
                     "media_quality_setting",
                     "quality_selection_tool",
                     "media_quality_v3",
-                    "hd_quality_v2"
+                    "hd_quality_v2",
+                    "media_upload_quality_selection",
+                    "is_hd_video_enabled",
+                    "is_hd_image_enabled",
+                    "story_media_quality"
             );
 
             for (var str : searchStrings) {
                 var methodData = dexkit.findMethod(FindMethod.create().matcher(
                         MethodMatcher.create().addUsingString(str, StringMatchType.Contains).returnType(boolean.class)));
                 if (!methodData.isEmpty()) {
-                    XposedBridge.log("MediaQuality: Found method using string: " + str);
+                    XposedBridge.log("MediaQuality: Found method using string: " + str + " (" + methodData.get(0).getName() + ")");
                     return methodData.get(0).getMethodInstance(classLoader);
                 }
             }
 
-            // Fallback for newer versions: any boolean method using "media_quality"
-            XposedBridge.log("MediaQuality: Initial strings failed, trying fallback 1 (boolean methods with 'media_quality' string)");
-            var methodDataList = dexkit.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().addUsingString("media_quality", StringMatchType.Contains).returnType(boolean.class)));
-            if (!methodDataList.isEmpty()) {
-                XposedBridge.log("MediaQuality: Found " + methodDataList.size() + " candidates in fallback 1, using first.");
-                return methodDataList.get(0).getMethodInstance(classLoader);
+            // Fallback 1: Any boolean method using common quality strings
+            List<String> fallbacks = List.of("media_quality", "hd_quality", "upload_quality", "quality_selection");
+            for (var str : fallbacks) {
+                var methodDataList = dexkit.findMethod(FindMethod.create().matcher(
+                        MethodMatcher.create().addUsingString(str, StringMatchType.Contains).returnType(boolean.class)));
+                if (!methodDataList.isEmpty()) {
+                    XposedBridge.log("MediaQuality: Found " + methodDataList.size() + " candidates using fallback string: " + str);
+                    return methodDataList.get(0).getMethodInstance(classLoader);
+                }
             }
 
-            // Fallback 2: Any method using "media_quality" regardless of return type, then filter for boolean
-            XposedBridge.log("MediaQuality: Fallback 1 failed, trying fallback 2 (any method with 'media_quality' string)");
-            methodDataList = dexkit.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().addUsingString("media_quality", StringMatchType.Contains)));
-            if (!methodDataList.isEmpty()) {
-                for (var md : methodDataList) {
-                    if (md.getReturnType().equals("Z")) {
-                        XposedBridge.log("MediaQuality: Found boolean method in fallback 2: " + md.getName());
+            // Fallback 2: Method names containing "Quality" and returning boolean
+            XposedBridge.log("MediaQuality: Fallback 1 failed, trying fallback 2 (name contains 'Quality')");
+            var result = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().name("Quality", StringMatchType.Contains).returnType(boolean.class)));
+            if (!result.isEmpty()) {
+                for (var md : result) {
+                    String name = md.getName().toLowerCase();
+                    if (name.contains("media") || name.contains("hd") || name.contains("selection")) {
+                        XposedBridge.log("MediaQuality: Found highly likely candidate in fallback 2: " + md.getName());
                         return md.getMethodInstance(classLoader);
                     }
                 }
-                XposedBridge.log("MediaQuality: No boolean method in fallback 2, using first candidate: " + methodDataList.get(0).getName());
-                return methodDataList.get(0).getMethodInstance(classLoader);
-            }
-
-            // Fallback 3: Search for methods with names containing "MediaQuality" and returning boolean
-            XposedBridge.log("MediaQuality: Fallback 2 failed, trying fallback 3 (method name 'MediaQuality')");
-            var result = dexkit.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().name("MediaQuality", StringMatchType.Contains).returnType(boolean.class)));
-            if (!result.isEmpty()) {
-                XposedBridge.log("MediaQuality: Found " + result.size() + " candidates in fallback 3, using first.");
+                XposedBridge.log("MediaQuality: Using first candidate from fallback 2: " + result.get(0).getName());
                 return result.get(0).getMethodInstance(classLoader);
             }
 
-            XposedBridge.log("MediaQuality: All discovery methods failed for loadMediaQualitySelectionMethod");
+            // Fallback 3: Any method using "quality" string, then filter for boolean return type
+            XposedBridge.log("MediaQuality: Fallback 2 failed, trying fallback 3 (broad string search)");
+            var methodDataList = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().addUsingString("quality", StringMatchType.Contains)));
+            if (!methodDataList.isEmpty()) {
+                for (var md : methodDataList) {
+                    if (md.getReturnType().equals("Z")) {
+                        XposedBridge.log("MediaQuality: Found boolean method in fallback 3: " + md.getName());
+                        return md.getMethodInstance(classLoader);
+                    }
+                }
+            }
+
+            XposedBridge.log("MediaQuality: CRITICAL - All discovery methods failed for loadMediaQualitySelectionMethod");
             throw new RuntimeException("MediaQualitySelection method not found");
         });
     }
