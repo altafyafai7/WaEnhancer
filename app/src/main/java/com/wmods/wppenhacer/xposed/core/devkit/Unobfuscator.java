@@ -460,13 +460,30 @@ public class Unobfuscator {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
             Class<?> clsFrag = XposedHelpers.findClass("com.whatsapp.conversationslist.ConversationsFragment",
                     classLoader);
-            Method result = Arrays.stream(clsFrag.getDeclaredMethods()).parallel()
-                    .filter(m -> m.getParameterTypes().length == 0 && m.getReturnType().equals(List.class)).findFirst()
-                    .orElse(null);
-            if (result == null)
-                throw new Exception("TabFragment method not found");
-            XposedBridge.log("SeparateGroup: Found TabFragment list method: " + result.getName());
-            return result;
+            
+            // Try to find a more specific method first
+            var methods = Arrays.stream(clsFrag.getDeclaredMethods()).parallel()
+                    .filter(m -> m.getParameterTypes().length == 0 && m.getReturnType().equals(List.class))
+                    .collect(Collectors.toList());
+            
+            if (methods.isEmpty())
+                throw new Exception("TabFragment method not found (no List-returning methods)");
+            
+            if (methods.size() == 1) {
+                XposedBridge.log("SeparateGroup: Found unique TabFragment list method: " + methods.get(0).getName());
+                return methods.get(0);
+            }
+
+            // If multiple, try to find one that might be related to "chats" or "conversations"
+            for (var m : methods) {
+                if (m.getName().toLowerCase().contains("chat") || m.getName().toLowerCase().contains("conv")) {
+                    XposedBridge.log("SeparateGroup: Found likely TabFragment list method by name: " + m.getName());
+                    return m;
+                }
+            }
+
+            XposedBridge.log("SeparateGroup: Multiple List-returning methods found in ConversationsFragment, using first: " + methods.get(0).getName());
+            return methods.get(0);
         });
     }
 
