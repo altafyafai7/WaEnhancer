@@ -233,16 +233,19 @@ public class Unobfuscator {
                     "jid.DeviceJid");
             var classPhoneUserJid = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith,
                     "jid.PhoneUserJid");
-            var methods = dexkit.findMethod(
-                    FindMethod.create()
-                            .matcher(MethodMatcher.create()
-                                    .addUsingString("receipt")
-                                    .paramCount(5, 8)));
 
-            for (var method : methods) {
-                var params = method.getParamTypeNames();
-                if (params.contains(classDeviceJid.getName()) && params.contains(classPhoneUserJid.getName()))
-                    return method.getMethodInstance(classLoader);
+            for (var str : List.of("receipt", "read-receipt-error", "read-receipt-retry")) {
+                var methods = dexkit.findMethod(
+                        FindMethod.create()
+                                .matcher(MethodMatcher.create()
+                                        .addUsingString(str, StringMatchType.Contains)
+                                        .paramCount(5, 9)));
+
+                for (var method : methods) {
+                    var params = method.getParamTypeNames();
+                    if (params.contains(classDeviceJid.getName()) && params.contains(classPhoneUserJid.getName()))
+                        return method.getMethodInstance(classLoader);
+                }
             }
 
             throw new NoSuchMethodError("Receipt method not found");
@@ -1913,11 +1916,16 @@ public class Unobfuscator {
 
     public synchronized static Method loadPlaybackSpeed(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            var method = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains,
-                    "heroaudioplayer/setPlaybackSpeed");
-            if (method == null)
-                throw new RuntimeException("PlaybackSpeed method not found");
-            return method;
+            for (var str : List.of("heroaudioplayer/setPlaybackSpeed", "heroaudioplayer/set_playback_speed")) {
+                var method = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, str);
+                if (method != null) return method;
+            }
+
+            var methodData = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().name("setPlaybackSpeed", StringMatchType.EndsWith).paramCount(2).paramTypes(null, float.class)));
+            if (!methodData.isEmpty()) return methodData.get(0).getMethodInstance(classLoader);
+
+            throw new RuntimeException("PlaybackSpeed method not found");
         });
     }
 
@@ -2254,17 +2262,13 @@ public class Unobfuscator {
 
     public static Method loadMediaQualitySelectionMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            var methodData = dexkit.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().addUsingString("enable_media_quality_tool").returnType(boolean.class)));
-
-            if (methodData.isEmpty()) {
-                methodData = dexkit.findMethod(FindMethod.create().matcher(
-                        MethodMatcher.create().addUsingString("show_media_quality_toggle").returnType(boolean.class)));
+            for (var str : List.of("enable_media_quality_tool", "show_media_quality_toggle", "settings_media_quality", "media_quality_upsell")) {
+                var methodData = dexkit.findMethod(FindMethod.create().matcher(
+                        MethodMatcher.create().addUsingString(str).returnType(boolean.class)));
+                if (!methodData.isEmpty()) return methodData.get(0).getMethodInstance(classLoader);
             }
 
-            if (methodData.isEmpty())
-                throw new RuntimeException("MediaQualitySelection method not found");
-            return methodData.get(0).getMethodInstance(classLoader);
+            throw new RuntimeException("MediaQualitySelection method not found");
         });
     }
 
