@@ -2270,7 +2270,7 @@ public class Unobfuscator {
 
     public static Method loadMediaQualitySelectionMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            for (var str : List.of(
+            List<String> searchStrings = List.of(
                     "enable_media_quality_tool",
                     "show_media_quality_toggle",
                     "settings_media_quality",
@@ -2288,29 +2288,51 @@ public class Unobfuscator {
                     "quality_selection_tool",
                     "media_quality_v3",
                     "hd_quality_v2"
-            )) {
+            );
+
+            for (var str : searchStrings) {
                 var methodData = dexkit.findMethod(FindMethod.create().matcher(
                         MethodMatcher.create().addUsingString(str, StringMatchType.Contains).returnType(boolean.class)));
-                if (!methodData.isEmpty()) return methodData.get(0).getMethodInstance(classLoader);
+                if (!methodData.isEmpty()) {
+                    XposedBridge.log("MediaQuality: Found method using string: " + str);
+                    return methodData.get(0).getMethodInstance(classLoader);
+                }
             }
 
             // Fallback for newer versions: any boolean method using "media_quality"
+            XposedBridge.log("MediaQuality: Initial strings failed, trying fallback 1 (boolean methods with 'media_quality' string)");
             var methodDataList = dexkit.findMethod(FindMethod.create().matcher(
                     MethodMatcher.create().addUsingString("media_quality", StringMatchType.Contains).returnType(boolean.class)));
-            if (!methodDataList.isEmpty()) return methodDataList.get(0).getMethodInstance(classLoader);
+            if (!methodDataList.isEmpty()) {
+                XposedBridge.log("MediaQuality: Found " + methodDataList.size() + " candidates in fallback 1, using first.");
+                return methodDataList.get(0).getMethodInstance(classLoader);
+            }
 
-            // Even broader fallback: any method using "media_quality" regardless of return type (though we hope it's boolean)
+            // Fallback 2: Any method using "media_quality" regardless of return type, then filter for boolean
+            XposedBridge.log("MediaQuality: Fallback 1 failed, trying fallback 2 (any method with 'media_quality' string)");
             methodDataList = dexkit.findMethod(FindMethod.create().matcher(
                     MethodMatcher.create().addUsingString("media_quality", StringMatchType.Contains)));
             if (!methodDataList.isEmpty()) {
                 for (var md : methodDataList) {
-                    if (md.getReturnType().equals("Z")) { // Z means boolean in descriptor
+                    if (md.getReturnType().equals("Z")) {
+                        XposedBridge.log("MediaQuality: Found boolean method in fallback 2: " + md.getName());
                         return md.getMethodInstance(classLoader);
                     }
                 }
+                XposedBridge.log("MediaQuality: No boolean method in fallback 2, using first candidate: " + methodDataList.get(0).getName());
                 return methodDataList.get(0).getMethodInstance(classLoader);
             }
 
+            // Fallback 3: Search for methods with names containing "MediaQuality" and returning boolean
+            XposedBridge.log("MediaQuality: Fallback 2 failed, trying fallback 3 (method name 'MediaQuality')");
+            var result = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().name("MediaQuality", StringMatchType.Contains).returnType(boolean.class)));
+            if (!result.isEmpty()) {
+                XposedBridge.log("MediaQuality: Found " + result.size() + " candidates in fallback 3, using first.");
+                return result.get(0).getMethodInstance(classLoader);
+            }
+
+            XposedBridge.log("MediaQuality: All discovery methods failed for loadMediaQualitySelectionMethod");
             throw new RuntimeException("MediaQualitySelection method not found");
         });
     }
