@@ -94,3 +94,16 @@ jobs:
             ${{ steps.changelog.outputs.content }}
 
             Release: https://github.com/${{ github.repository }}/releases/tag/debug-${{ env.SHORT_SHA }}
+
+      - name: Upload APKs to Telegram
+        if: ${{ success() && github.ref == 'refs/heads/master' && github.ref_type != 'tag' && env.BOT_TOKEN != '' }}
+        run: |
+          curl -F document=@app/build/outputs/apk/whatsapp/debug/app-whatsapp-debug.apk \
+               -F chat_id="${{ env.CHANNEL_ID }}" \
+               -F caption="WhatsApp APK: debug-${{ env.SHORT_SHA }}" \
+               https://api.telegram.org/bot${{ env.BOT_TOKEN }}/sendDocument
+          
+          curl -F document=@app/build/outputs/apk/business/debug/app-business-debug.apk \
+               -F chat_id="${{ env.CHANNEL_ID }}" \
+               -F caption="Business APK: debug-${{ env.SHORT_SHA }}" \
+               https://api.telegram.org/bot${{ env.BOT_TOKEN }}/sendDocument
