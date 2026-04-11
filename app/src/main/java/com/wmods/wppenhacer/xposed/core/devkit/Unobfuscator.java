@@ -797,8 +797,9 @@ public class Unobfuscator {
     public synchronized static Field loadStatusIndexField(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getField(loader, () -> {
             var method = loadStatusActivePage(loader);
-            var methodData = dexkit.getMethodData(method);
-            var usingFields = Objects.requireNonNull(methodData).getUsingFields();
+            var methodData = dexkit.getMethodData(DexSignUtil.getMethodDescriptor(method));
+            if (methodData == null) throw new Exception("StatusIndex method data not found");
+            var usingFields = methodData.getUsingFields();
             // The index field is typically an int field modified in setPageActive
             for (var ufield : usingFields) {
                 var field = ufield.getField().getFieldInstance(loader);

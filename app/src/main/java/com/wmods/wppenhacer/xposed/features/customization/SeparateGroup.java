@@ -286,7 +286,8 @@ public class SeparateGroup extends Feature {
                 var baseField = ReflectionUtils.getFieldByExtendType(publishResultsMethod.getDeclaringClass(), BaseAdapter.class);
                 if (baseField == null) return;
                 var convField = ReflectionUtils.getFieldByType(baseField.getType(), cFrag);
-                Object thiz = convField.get(baseField.get(param.thisObject));
+                if (convField == null) return;
+                Object thiz = ReflectionUtils.getObjectField(convField, ReflectionUtils.getObjectField(baseField, param.thisObject));
                 if (thiz == null) return;
                 
                 var resultList = filterChat(thiz, chatsList);
