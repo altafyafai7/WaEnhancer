@@ -815,14 +815,14 @@ public class Unobfuscator {
         return UnobfuscatorCache.getInstance().getField(loader, () -> {
             var clazz = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
             // The status list is typically the only List field in this class or its base
-            var fields = ReflectionUtils.getFieldsByExtendType(clazz, List.class);
-            if (fields.isEmpty()) {
+            var fields = ReflectionUtils.findAllFieldsUsingFilter(clazz, f -> List.class.isAssignableFrom(f.getType()));
+            if (fields.length == 0) {
                 var base = clazz.getSuperclass();
-                if (base != null) fields = ReflectionUtils.getFieldsByExtendType(base, List.class);
+                if (base != null) fields = ReflectionUtils.findAllFieldsUsingFilter(base, f -> List.class.isAssignableFrom(f.getType()));
             }
-            if (fields.isEmpty()) throw new Exception("StatusList field not found");
-            XposedBridge.log("Status: Found StatusList field: " + fields.get(0).getName());
-            return fields.get(0);
+            if (fields.length == 0) throw new Exception("StatusList field not found");
+            XposedBridge.log("Status: Found StatusList field: " + fields[0].getName());
+            return fields[0];
         });
     }
 

@@ -204,7 +204,8 @@ public class SeparateGroup extends Feature {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 var string = "";
-                if (param.args[0] instanceof Bundle bundle) {
+                if (param.args[0] instanceof Bundle) {
+                    var bundle = (Bundle) param.args[0];
                     var state = bundle.getParcelable("state");
                     if (state == null) return;
                     string = state.toString();
