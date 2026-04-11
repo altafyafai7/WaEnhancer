@@ -5,8 +5,14 @@ import static com.wmods.wppenhacer.xposed.features.listeners.MenuStatusListener.
 import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -18,15 +24,19 @@ import com.wmods.wppenhacer.xposed.core.components.FMessageWpp;
 import com.wmods.wppenhacer.xposed.core.devkit.Unobfuscator;
 import com.wmods.wppenhacer.xposed.features.listeners.MenuStatusListener;
 import com.wmods.wppenhacer.xposed.utils.MimeTypeUtils;
+import com.wmods.wppenhacer.xposed.utils.ReflectionUtils;
 import com.wmods.wppenhacer.xposed.utils.ResId;
 import com.wmods.wppenhacer.xposed.utils.Utils;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 
-import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XSharedPreferences;
+import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
 
 public class StatusDownload extends Feature {
 
@@ -84,6 +94,68 @@ public class StatusDownload extends Feature {
             }
         };
         menuStatuses.add(sharedMenu);
+
+        // Direct Icon Injection
+        var viewButtonMethod = Unobfuscator.loadBlueOnReplayViewButtonMethod(classLoader);
+        var viewStatusField = Unobfuscator.loadBlueOnReplayViewButtonOutSideField(classLoader);
+
+        XposedBridge.hookMethod(viewButtonMethod, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                Field fMessageField = ReflectionUtils.getFieldByExtendType(viewStatusField.getDeclaringClass(), FMessageWpp.TYPE);
+                Object fMessageObj = ReflectionUtils.getObjectField(fMessageField, param.thisObject);
+                if (fMessageObj == null) {
+                    Object instance = ReflectionUtils.getObjectField(viewStatusField, param.thisObject);
+                    fMessageField = ReflectionUtils.findFieldUsingFilterIfExists(instance.getClass(), field1 -> FMessageWpp.TYPE.isAssignableFrom(field1.getType()));
+                    if (fMessageField != null) {
+                        fMessageObj = ReflectionUtils.getObjectField(fMessageField, instance);
+                    }
+                }
+                if (fMessageObj == null) return;
+
+                FMessageWpp fMessage = new FMessageWpp(fMessageObj);
+                if (fMessage.getKey().isFromMe) return;
+
+                View view = (View) param.getResult();
+                LinearLayout contentView = (LinearLayout) view.findViewById(Utils.getID("bottom_sheet", "id"));
+                if (contentView == null) return;
+
+                contentView.setOrientation(LinearLayout.HORIZONTAL);
+
+                // Share Icon
+                ImageView shareIcon = new ImageView(view.getContext());
+                LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
+                shareParams.gravity = Gravity.CENTER_VERTICAL;
+                shareParams.setMargins(Utils.dipToPixels(5), Utils.dipToPixels(5), 0, 0);
+                shareIcon.setLayoutParams(shareParams);
+                shareIcon.setImageResource(Utils.getID("ic_action_share", "drawable"));
+                shareIcon.setBackground(getIconBackground());
+                shareIcon.setOnClickListener(v -> sharedStatus(fMessage));
+                contentView.addView(shareIcon, 0);
+
+                // Download Icon (only if media)
+                if (fMessage.isMediaFile()) {
+                    ImageView downloadIcon = new ImageView(view.getContext());
+                    LinearLayout.LayoutParams downloadParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
+                    downloadParams.gravity = Gravity.CENTER_VERTICAL;
+                    downloadParams.setMargins(Utils.dipToPixels(5), Utils.dipToPixels(5), 0, 0);
+                    downloadIcon.setLayoutParams(downloadParams);
+                    downloadIcon.setImageResource(Utils.getID("download", "drawable"));
+                    downloadIcon.setBackground(getIconBackground());
+                    downloadIcon.setOnClickListener(v -> downloadFile(fMessage));
+                    contentView.addView(downloadIcon, 0);
+                }
+            }
+        });
+    }
+
+    private GradientDrawable getIconBackground() {
+        GradientDrawable border = new GradientDrawable();
+        border.setShape(GradientDrawable.RECTANGLE);
+        border.setStroke(1, Color.WHITE);
+        border.setCornerRadius(20);
+        border.setColor(Color.parseColor("#80000000"));
+        return border;
     }
 
     private void sharedStatus(FMessageWpp fMessageWpp) {
