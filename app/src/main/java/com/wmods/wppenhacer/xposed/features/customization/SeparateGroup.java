@@ -374,14 +374,30 @@ public class SeparateGroup extends Feature {
         }
 
         private boolean checkGroup(Object chat) {
-            var jidField = ReflectionUtils.findFieldUsingFilterIfExists(chat.getClass(), f -> f.getType() == FMessageWpp.UserJid.TYPE_JID);
-            if (jidField == null) {
-                // If JID field not found directly, log it and keep it in list to avoid losing data
-                XposedBridge.log("SeparateGroup: JID field not found in object of class " + chat.getClass().getName());
+            // Strategy 1: Find JID field by type
+            var jidField = ReflectionUtils.findFieldUsingFilterIfExists(chat.getClass(), f -> FMessageWpp.UserJid.TYPE_JID.isAssignableFrom(f.getType()));
+            Object jidObject = null;
+            
+            if (jidField != null) {
+                jidObject = ReflectionUtils.getObjectField(jidField, chat);
+            }
+
+            // Strategy 2: Aggressive scan if type-based discovery failed or returned null
+            if (jidObject == null) {
+                for (var field : chat.getClass().getDeclaredFields()) {
+                    if (field.getType().isPrimitive()) continue;
+                    var obj = ReflectionUtils.getObjectField(field, chat);
+                    if (obj != null && XposedHelpers.findMethodExactIfExists(obj.getClass(), "getServer") != null) {
+                        jidObject = obj;
+                        break;
+                    }
+                }
+            }
+
+            if (jidObject == null) {
+                XposedBridge.log("SeparateGroup: Could not find JID in chat object of class " + chat.getClass().getName());
                 return true;
             }
-            var jidObject = ReflectionUtils.getObjectField(jidField, chat);
-            if (jidObject == null) return true;
 
             var userJid = new FMessageWpp.UserJid(jidObject);
             boolean isGroupJid = userJid.isGroup() || userJid.isBroadcast();

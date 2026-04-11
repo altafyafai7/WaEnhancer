@@ -38,7 +38,9 @@ public class MenuStatusListener extends Feature {
 
         Class<?> StatusPlaybackBaseFragmentClass = classLoader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackBaseFragment");
         Class<?> StatusPlaybackContactFragmentClass = classLoader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
-        var listStatusField = ReflectionUtils.getFieldsByExtendType(StatusPlaybackContactFragmentClass, List.class).get(0);
+        
+        var listStatusField = Unobfuscator.loadStatusListField(classLoader);
+        var indexStatusField = Unobfuscator.loadStatusIndexField(classLoader);
 
         XposedBridge.hookMethod(menuStatusMethod, new XC_MethodHook() {
             @Override
@@ -51,6 +53,12 @@ public class MenuStatusListener extends Feature {
                 } else {
                     fragmentInstance = fieldObjects.stream().filter(StatusPlaybackBaseFragmentClass::isInstance).findFirst().orElse(null);
                 }
+                
+                if (fragmentInstance == null) {
+                    XposedBridge.log("MenuStatus: Could not find StatusPlaybackFragment instance");
+                    return;
+                }
+
                 Menu menu;
                 if (param.args.length > 0 && param.args[0] instanceof Menu) {
                     menu = (Menu) param.args[0];
@@ -60,13 +68,26 @@ public class MenuStatusListener extends Feature {
                     menu = (Menu) ReflectionUtils.getObjectField(menuField, menuManager);
                 }
 
-                var index = (int) XposedHelpers.getObjectField(fragmentInstance, "A00");
-                var listStatus = (List) listStatusField.get(fragmentInstance);
+                int index = indexStatusField.getInt(fragmentInstance);
+                List listStatus = (List) listStatusField.get(fragmentInstance);
+                
+                if (listStatus == null || index < 0 || index >= listStatus.size()) {
+                    XposedBridge.log("MenuStatus: Invalid index (" + index + ") or null list");
+                    return;
+                }
+
                 var object = listStatus.get(index);
                 if (object == null) return;
                 if (!FMessageWpp.TYPE.isInstance(object)) {
                     var fMessageField = ReflectionUtils.getFieldByExtendType(object.getClass(), FMessageWpp.TYPE);
-                    object = ReflectionUtils.getObjectField(fMessageField, object);
+                    if (fMessageField != null) {
+                        object = ReflectionUtils.getObjectField(fMessageField, object);
+                    }
+                }
+
+                if (object == null || !FMessageWpp.TYPE.isInstance(object)) {
+                    XposedBridge.log("MenuStatus: Could not extract FMessage from object: " + (object != null ? object.getClass().getName() : "null"));
+                    return;
                 }
 
                 var fMessage = new FMessageWpp(object);

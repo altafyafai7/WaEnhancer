@@ -51,10 +51,14 @@ public class FMessageWpp {
     public static void initialize(ClassLoader classLoader) {
         try {
             TYPE = Unobfuscator.loadFMessageClass(classLoader);
+            XposedBridge.log("Core: FMessage class: " + TYPE.getName());
+            
             UserJid.TYPE_USERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.UserJid");
             UserJid.TYPE_JID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.Jid");
             UserJid.TYPE_PHONEUSERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.PhoneUserJid");
             UserJid.TYPE_DEVICEJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.DeviceJid");
+            XposedBridge.log("Core: JID classes initialized");
+
             var userJidClass = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.UserJid");
             userJidMethod = ReflectionUtils.findMethodUsingFilter(TYPE, method -> method.getParameterCount() == 0 && method.getReturnType() == userJidClass);
             keyMessage = Unobfuscator.loadMessageKeyField(classLoader);
@@ -68,7 +72,9 @@ public class FMessageWpp {
             abstractMediaMessageClass = Unobfuscator.loadAbstractMediaMessageClass(classLoader);
             broadcastField = Unobfuscator.loadBroadcastTagField(classLoader);
             getFieldIdMessage = Unobfuscator.loadSetEditMessageField(classLoader);
+            XposedBridge.log("Core: All FMessage components initialized successfully");
         } catch (Exception e) {
+            XposedBridge.log("Core: Initialization FAILED");
             XposedBridge.log(e);
         }
     }

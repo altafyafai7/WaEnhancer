@@ -794,6 +794,38 @@ public class Unobfuscator {
         });
     }
 
+    public synchronized static Field loadStatusIndexField(ClassLoader loader) throws Exception {
+        return UnobfuscatorCache.getInstance().getField(loader, () -> {
+            var method = loadStatusActivePage(loader);
+            var methodData = dexkit.getMethodData(method);
+            var usingFields = Objects.requireNonNull(methodData).getUsingFields();
+            // The index field is typically an int field modified in setPageActive
+            for (var ufield : usingFields) {
+                var field = ufield.getField().getFieldInstance(loader);
+                if (field.getType() == int.class) {
+                    XposedBridge.log("Status: Found StatusIndex field: " + field.getName());
+                    return field;
+                }
+            }
+            throw new Exception("StatusIndex field not found");
+        });
+    }
+
+    public synchronized static Field loadStatusListField(ClassLoader loader) throws Exception {
+        return UnobfuscatorCache.getInstance().getField(loader, () -> {
+            var clazz = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
+            // The status list is typically the only List field in this class or its base
+            var fields = ReflectionUtils.getFieldsByExtendType(clazz, List.class);
+            if (fields.isEmpty()) {
+                var base = clazz.getSuperclass();
+                if (base != null) fields = ReflectionUtils.getFieldsByExtendType(base, List.class);
+            }
+            if (fields.isEmpty()) throw new Exception("StatusList field not found");
+            XposedBridge.log("Status: Found StatusList field: " + fields.get(0).getName());
+            return fields.get(0);
+        });
+    }
+
     public synchronized static Class<?> loadMenuManagerClass(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getClass(classLoader, () -> {
             var methods = findAllMethodUsingStrings(classLoader, StringMatchType.Contains,
