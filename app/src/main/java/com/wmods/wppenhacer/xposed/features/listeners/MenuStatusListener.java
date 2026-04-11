@@ -32,7 +32,7 @@ public class MenuStatusListener extends Feature {
     @Override
     public void doHook() throws Throwable {
 
-        var menuStatusMethod = Unobfuscator.loadMenuStatusMethod(classLoader);
+        var menuStatusMethod = Unobfuscator.loadStatusContextMenuMethod(classLoader);
         logDebug("MenuStatus method: " + menuStatusMethod.getName());
         var menuManagerClass = Unobfuscator.loadMenuManagerClass(classLoader);
 
@@ -45,12 +45,17 @@ public class MenuStatusListener extends Feature {
         XposedBridge.hookMethod(menuStatusMethod, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                var fieldObjects = Arrays.stream(param.method.getDeclaringClass().getDeclaredFields()).map(field -> ReflectionUtils.getObjectField(field, param.thisObject)).filter(Objects::nonNull).collect(Collectors.toList());
-
-                Object fragmentInstance;
-                if (param.thisObject != null && StatusPlaybackContactFragmentClass.isInstance(param.thisObject)) {
-                    fragmentInstance = param.thisObject;
-                } else {
+                XposedBridge.log("MenuStatus: onCreateContextMenu called in " + param.thisObject.getClass().getName());
+                
+                Object fragmentInstance = null;
+                if (param.thisObject != null) {
+                    if (StatusPlaybackContactFragmentClass.isInstance(param.thisObject) || StatusPlaybackBaseFragmentClass.isInstance(param.thisObject)) {
+                        fragmentInstance = param.thisObject;
+                    }
+                }
+                
+                if (fragmentInstance == null) {
+                    var fieldObjects = Arrays.stream(param.method.getDeclaringClass().getDeclaredFields()).map(field -> ReflectionUtils.getObjectField(field, param.thisObject)).filter(Objects::nonNull).collect(Collectors.toList());
                     fragmentInstance = fieldObjects.stream().filter(StatusPlaybackBaseFragmentClass::isInstance).findFirst().orElse(null);
                 }
                 
@@ -59,15 +64,8 @@ public class MenuStatusListener extends Feature {
                     return;
                 }
 
-                Menu menu;
-                if (param.args.length > 0 && param.args[0] instanceof Menu) {
-                    menu = (Menu) param.args[0];
-                } else {
-                    var menuManager = fieldObjects.stream().filter(menuManagerClass::isInstance).findFirst().orElse(null);
-                    var menuField = ReflectionUtils.getFieldByExtendType(menuManagerClass, Menu.class);
-                    menu = (Menu) ReflectionUtils.getObjectField(menuField, menuManager);
-                }
-
+                Menu menu = (Menu) param.args[0];
+                
                 int index = indexStatusField.getInt(fragmentInstance);
                 List listStatus = (List) listStatusField.get(fragmentInstance);
                 

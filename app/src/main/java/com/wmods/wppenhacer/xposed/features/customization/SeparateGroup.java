@@ -316,20 +316,40 @@ public class SeparateGroup extends Feature {
 
     private void hookTabList(@NonNull Class<?> home) throws Exception {
         var onCreateTabList = Unobfuscator.loadTabListMethod(classLoader);
-        var fieldTabsList = ReflectionUtils.getFieldByExtendType(home, List.class);
-        if (fieldTabsList == null) {
-            throw new NullPointerException("fieldTabList is NULL!");
-        }
         XposedBridge.hookMethod(onCreateTabList, new XC_MethodHook() {
             @Override
             @SuppressWarnings("unchecked")
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                tabs = (ArrayList<Integer>) fieldTabsList.get(null);
+                if (!prefs.getBoolean("separategroups", false)) return;
+
+                // Try to find the tabs list field dynamically in both HomeActivity and param.thisObject
+                List<Object> searchObjects = new ArrayList<>();
+                if (param.thisObject != null) searchObjects.add(param.thisObject);
+                searchObjects.add(null); // To check static fields in HomeActivity and param.thisObject.getClass()
+
+                for (Object obj : searchObjects) {
+                    Class<?> targetClass = (obj != null) ? obj.getClass() : home;
+                    var fields = ReflectionUtils.findAllFieldsUsingFilter(targetClass, f -> List.class.isAssignableFrom(f.getType()));
+                    
+                    for (var field : fields) {
+                        try {
+                            field.setAccessible(true);
+                            var value = (ArrayList<Integer>) field.get(obj);
+                            if (value != null && !value.isEmpty() && (value.contains(CHATS) || value.contains(STATUS))) {
+                                tabs = value;
+                                XposedBridge.log("SeparateGroup: Found tabs list in field: " + targetClass.getName() + "->" + field.getName());
+                                break;
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                    if (tabs != null) break;
+                }
+
                 if (tabs == null) {
-                    XposedBridge.log("SeparateGroup: Tabs list is null in HomeActivity");
+                    XposedBridge.log("SeparateGroup: CRITICAL - Tabs list not found after scanning fields");
                     return;
                 }
-                if (!prefs.getBoolean("separategroups", false)) return;
+
                 if (!tabs.contains(GROUPS)) {
                     XposedBridge.log("SeparateGroup: Adding GROUPS tab to list");
                     tabs.add(tabs.isEmpty() ? 0 : 1, GROUPS);

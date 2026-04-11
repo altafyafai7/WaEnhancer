@@ -854,6 +854,21 @@ public class Unobfuscator {
         });
     }
 
+    public synchronized static Method loadStatusContextMenuMethod(ClassLoader loader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(loader, () -> {
+            var clazz = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
+            var method = ReflectionUtils.findMethodUsingFilterIfExists(clazz, m -> m.getName().equals("onCreateContextMenu"));
+            if (method == null) {
+                XposedBridge.log("Status: onCreateContextMenu not found in StatusPlaybackContactFragment, searching in base");
+                var base = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackBaseFragment");
+                method = ReflectionUtils.findMethodUsingFilterIfExists(base, m -> m.getName().equals("onCreateContextMenu"));
+            }
+            if (method == null) throw new Exception("StatusContextMenu method not found");
+            XposedBridge.log("Status: Found StatusContextMenu method: " + method.getName());
+            return method;
+        });
+    }
+
     // TODO: Classes and methods to ViewOnce
 
     public synchronized static Method[] loadViewOnceMethod(ClassLoader classLoader) throws Exception {
