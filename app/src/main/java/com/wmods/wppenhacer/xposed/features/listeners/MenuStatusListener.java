@@ -66,15 +66,16 @@ public class MenuStatusListener extends Feature {
                     return;
                 }
 
+                final Object statusFragment = fragmentInstance;
                 Menu menu = (Menu) param.args[0];
                 
-                Object indexObj = ReflectionUtils.getObjectField(indexStatusField, fragmentInstance);
+                Object indexObj = ReflectionUtils.getObjectField(indexStatusField, statusFragment);
                 if (!(indexObj instanceof Integer)) {
                     XposedBridge.log("MenuStatus: Could not get index from StatusIndex field");
                     return;
                 }
                 int index = (int) indexObj;
-                List<?> listStatus = (List<?>) ReflectionUtils.getObjectField(listStatusField, fragmentInstance);
+                List<?> listStatus = (List<?>) ReflectionUtils.getObjectField(listStatusField, statusFragment);
                 
                 if (listStatus == null || index < 0 || index >= listStatus.size()) {
                     XposedBridge.log("MenuStatus: Invalid index (" + index + ") or null list");
@@ -101,7 +102,7 @@ public class MenuStatusListener extends Feature {
                     MenuItem menuItem = menuStatus.addMenu(menu, fMessage);
                     if (menuItem == null) continue;
                     menuItem.setOnMenuItemClickListener(item -> {
-                        menuStatus.onClick(item, fragmentInstance, fMessage);
+                        menuStatus.onClick(item, statusFragment, fMessage);
                         return true;
                     });
                 }
