@@ -135,9 +135,16 @@ public class StatusDownload extends Feature {
 
                 LinearLayout contentView = (LinearLayout) view.findViewById(Utils.getID("bottom_sheet", "id"));
                 if (contentView == null) {
-                    XposedBridge.log("StatusDownload: Could not find 'bottom_sheet' view in layout");
-                    // Try fallback container
+                    XposedBridge.log("StatusDownload: Could not find 'bottom_sheet' view, trying 'footer'");
                     contentView = (LinearLayout) view.findViewById(Utils.getID("footer", "id"));
+                }
+                
+                if (contentView == null) {
+                    XposedBridge.log("StatusDownload: Could not find 'footer' view, trying parent of 'caption'");
+                    View caption = view.findViewById(Utils.getID("caption", "id"));
+                    if (caption != null && caption.getParent() instanceof LinearLayout) {
+                        contentView = (LinearLayout) caption.getParent();
+                    }
                 }
                 
                 if (contentView == null) {
