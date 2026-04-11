@@ -95,7 +95,7 @@ public class StatusDownload extends Feature {
         };
         menuStatuses.add(sharedMenu);
 
-        // Direct Icon Injection
+        // Direct Icon Injection - Hook Point 1
         Method viewButtonMethod = Unobfuscator.loadBlueOnReplayViewButtonMethod(classLoader);
         Field viewStatusField = Unobfuscator.loadBlueOnReplayViewButtonOutSideField(classLoader);
         XposedBridge.log("StatusDownload: Hooking viewButtonMethod: " + viewButtonMethod.getName());
@@ -103,11 +103,38 @@ public class StatusDownload extends Feature {
         XposedBridge.hookMethod(viewButtonMethod, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                XposedBridge.log("StatusDownload: viewButtonMethod called");
+                View view = (View) param.getResult();
+                injectIcons(view, param.thisObject, viewStatusField);
+            }
+        });
+
+        // Direct Icon Injection - Hook Point 2 (Alternative)
+        try {
+            Method viewStatusMethod = Unobfuscator.loadBlueOnReplayStatusViewMethod(classLoader);
+            XposedBridge.log("StatusDownload: Hooking viewStatusMethod: " + viewStatusMethod.getName());
+            XposedBridge.hookMethod(viewStatusMethod, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    View view = (View) param.args[0];
+                    injectIcons(view, param.thisObject, null);
+                }
+            });
+        } catch (Exception e) {
+            XposedBridge.log("StatusDownload: Could not hook viewStatusMethod: " + e.getMessage());
+        }
+    }
+
+    private void injectIcons(View view, Object thisObject, Field viewStatusField) {
+        try {
+            if (view == null) return;
+            if (view.findViewWithTag("wae_status_icons") != null) return; // Already injected
+
+            Object fMessageObj = null;
+            if (viewStatusField != null) {
                 Field fMessageField = ReflectionUtils.getFieldByExtendType(viewStatusField.getDeclaringClass(), FMessageWpp.TYPE);
-                Object fMessageObj = ReflectionUtils.getObjectField(fMessageField, param.thisObject);
+                fMessageObj = ReflectionUtils.getObjectField(fMessageField, thisObject);
                 if (fMessageObj == null) {
-                    Object instance = ReflectionUtils.getObjectField(viewStatusField, param.thisObject);
+                    Object instance = ReflectionUtils.getObjectField(viewStatusField, thisObject);
                     if (instance != null) {
                         fMessageField = ReflectionUtils.findFieldUsingFilterIfExists(instance.getClass(), field1 -> FMessageWpp.TYPE.isAssignableFrom(field1.getType()));
                         if (fMessageField != null) {
@@ -115,72 +142,75 @@ public class StatusDownload extends Feature {
                         }
                     }
                 }
-                
-                if (fMessageObj == null) {
-                    XposedBridge.log("StatusDownload: Could not find fMessageObj");
-                    return;
-                }
-
-                FMessageWpp fMessage = new FMessageWpp(fMessageObj);
-                if (fMessage.getKey().isFromMe) {
-                    XposedBridge.log("StatusDownload: Message is from me, skipping icons");
-                    return;
-                }
-
-                View view = (View) param.getResult();
-                if (view == null) {
-                    XposedBridge.log("StatusDownload: Hooked method returned null view");
-                    return;
-                }
-
-                LinearLayout contentView = (LinearLayout) view.findViewById(Utils.getID("bottom_sheet", "id"));
-                if (contentView == null) {
-                    XposedBridge.log("StatusDownload: Could not find 'bottom_sheet' view, trying 'footer'");
-                    contentView = (LinearLayout) view.findViewById(Utils.getID("footer", "id"));
-                }
-                
-                if (contentView == null) {
-                    XposedBridge.log("StatusDownload: Could not find 'footer' view, trying parent of 'caption'");
-                    View caption = view.findViewById(Utils.getID("caption", "id"));
-                    if (caption != null && caption.getParent() instanceof LinearLayout) {
-                        contentView = (LinearLayout) caption.getParent();
-                    }
-                }
-                
-                if (contentView == null) {
-                    XposedBridge.log("StatusDownload: No suitable container found for icons");
-                    return;
-                }
-
-                contentView.setOrientation(LinearLayout.HORIZONTAL);
-                XposedBridge.log("StatusDownload: Injecting icons into " + contentView.getClass().getName());
-
-                // Share Icon
-                ImageView shareIcon = new ImageView(view.getContext());
-                LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
-                shareParams.gravity = Gravity.CENTER_VERTICAL;
-                shareParams.setMargins(Utils.dipToPixels(5), Utils.dipToPixels(5), 0, 0);
-                shareIcon.setLayoutParams(shareParams);
-                shareIcon.setImageResource(Utils.getID("ic_action_share", "drawable"));
-                shareIcon.setBackground(getIconBackground());
-                shareIcon.setOnClickListener(v -> sharedStatus(fMessage));
-                contentView.addView(shareIcon, 0);
-
-                // Download Icon (only if media)
-                if (fMessage.isMediaFile()) {
-                    XposedBridge.log("StatusDownload: Injecting Download icon");
-                    ImageView downloadIcon = new ImageView(view.getContext());
-                    LinearLayout.LayoutParams downloadParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
-                    downloadParams.gravity = Gravity.CENTER_VERTICAL;
-                    downloadParams.setMargins(Utils.dipToPixels(5), Utils.dipToPixels(5), 0, 0);
-                    downloadIcon.setLayoutParams(downloadParams);
-                    downloadIcon.setImageResource(Utils.getID("download", "drawable"));
-                    downloadIcon.setBackground(getIconBackground());
-                    downloadIcon.setOnClickListener(v -> downloadFile(fMessage));
-                    contentView.addView(downloadIcon, 0);
+            } else {
+                // Try to find FMessage in thisObject directly
+                Field fMessageField = ReflectionUtils.findFieldUsingFilterIfExists(thisObject.getClass(), field -> FMessageWpp.TYPE.isAssignableFrom(field.getType()));
+                if (fMessageField != null) {
+                    fMessageObj = ReflectionUtils.getObjectField(fMessageField, thisObject);
                 }
             }
-        });
+
+            if (fMessageObj == null) {
+                XposedBridge.log("StatusDownload: Could not find fMessageObj for injection");
+                return;
+            }
+
+            FMessageWpp fMessage = new FMessageWpp(fMessageObj);
+            if (fMessage.getKey().isFromMe) return;
+
+            LinearLayout contentView = (LinearLayout) view.findViewById(Utils.getID("bottom_sheet", "id"));
+            if (contentView == null) {
+                contentView = (LinearLayout) view.findViewById(Utils.getID("footer", "id"));
+            }
+            if (contentView == null) {
+                View caption = view.findViewById(Utils.getID("caption", "id"));
+                if (caption != null && caption.getParent() instanceof LinearLayout) {
+                    contentView = (LinearLayout) caption.getParent();
+                }
+            }
+
+            if (contentView == null) {
+                XposedBridge.log("StatusDownload: No container found for icons in " + view.getClass().getName());
+                return;
+            }
+
+            contentView.setTag("wae_status_icons");
+            contentView.setOrientation(LinearLayout.HORIZONTAL);
+            XposedBridge.log("StatusDownload: Injecting icons into " + contentView.getClass().getName());
+
+            // Share Icon
+            int shareId = Utils.getID("ic_action_share", "drawable");
+            if (shareId <= 0) shareId = Utils.getID("ic_share", "drawable");
+            if (shareId <= 0) shareId = ResId.drawable.camera;
+            
+            ImageView shareIcon = new ImageView(view.getContext());
+            LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
+            shareParams.gravity = Gravity.CENTER_VERTICAL;
+            shareParams.setMargins(Utils.dipToPixels(5), Utils.dipToPixels(5), 0, 0);
+            shareIcon.setLayoutParams(shareParams);
+            shareIcon.setImageResource(shareId);
+            shareIcon.setBackground(getIconBackground());
+            shareIcon.setOnClickListener(v -> sharedStatus(fMessage));
+            contentView.addView(shareIcon, 0);
+
+            // Download Icon (only if media)
+            if (fMessage.isMediaFile()) {
+                int downloadId = Utils.getID("download", "drawable");
+                if (downloadId <= 0) downloadId = ResId.drawable.download;
+                
+                ImageView downloadIcon = new ImageView(view.getContext());
+                LinearLayout.LayoutParams downloadParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
+                downloadParams.gravity = Gravity.CENTER_VERTICAL;
+                downloadParams.setMargins(Utils.dipToPixels(5), Utils.dipToPixels(5), 0, 0);
+                downloadIcon.setLayoutParams(downloadParams);
+                downloadIcon.setImageResource(downloadId);
+                downloadIcon.setBackground(getIconBackground());
+                downloadIcon.setOnClickListener(v -> downloadFile(fMessage));
+                contentView.addView(downloadIcon, 0);
+            }
+        } catch (Exception e) {
+            XposedBridge.log("StatusDownload: Icon injection error: " + e.getMessage());
+        }
     }
 
     private GradientDrawable getIconBackground() {
