@@ -96,31 +96,57 @@ public class StatusDownload extends Feature {
         menuStatuses.add(sharedMenu);
 
         // Direct Icon Injection
-        var viewButtonMethod = Unobfuscator.loadBlueOnReplayViewButtonMethod(classLoader);
-        var viewStatusField = Unobfuscator.loadBlueOnReplayViewButtonOutSideField(classLoader);
+        Method viewButtonMethod = Unobfuscator.loadBlueOnReplayViewButtonMethod(classLoader);
+        Field viewStatusField = Unobfuscator.loadBlueOnReplayViewButtonOutSideField(classLoader);
+        XposedBridge.log("StatusDownload: Hooking viewButtonMethod: " + viewButtonMethod.getName());
 
         XposedBridge.hookMethod(viewButtonMethod, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                XposedBridge.log("StatusDownload: viewButtonMethod called");
                 Field fMessageField = ReflectionUtils.getFieldByExtendType(viewStatusField.getDeclaringClass(), FMessageWpp.TYPE);
                 Object fMessageObj = ReflectionUtils.getObjectField(fMessageField, param.thisObject);
                 if (fMessageObj == null) {
                     Object instance = ReflectionUtils.getObjectField(viewStatusField, param.thisObject);
-                    fMessageField = ReflectionUtils.findFieldUsingFilterIfExists(instance.getClass(), field1 -> FMessageWpp.TYPE.isAssignableFrom(field1.getType()));
-                    if (fMessageField != null) {
-                        fMessageObj = ReflectionUtils.getObjectField(fMessageField, instance);
+                    if (instance != null) {
+                        fMessageField = ReflectionUtils.findFieldUsingFilterIfExists(instance.getClass(), field1 -> FMessageWpp.TYPE.isAssignableFrom(field1.getType()));
+                        if (fMessageField != null) {
+                            fMessageObj = ReflectionUtils.getObjectField(fMessageField, instance);
+                        }
                     }
                 }
-                if (fMessageObj == null) return;
+                
+                if (fMessageObj == null) {
+                    XposedBridge.log("StatusDownload: Could not find fMessageObj");
+                    return;
+                }
 
                 FMessageWpp fMessage = new FMessageWpp(fMessageObj);
-                if (fMessage.getKey().isFromMe) return;
+                if (fMessage.getKey().isFromMe) {
+                    XposedBridge.log("StatusDownload: Message is from me, skipping icons");
+                    return;
+                }
 
                 View view = (View) param.getResult();
+                if (view == null) {
+                    XposedBridge.log("StatusDownload: Hooked method returned null view");
+                    return;
+                }
+
                 LinearLayout contentView = (LinearLayout) view.findViewById(Utils.getID("bottom_sheet", "id"));
-                if (contentView == null) return;
+                if (contentView == null) {
+                    XposedBridge.log("StatusDownload: Could not find 'bottom_sheet' view in layout");
+                    // Try fallback container
+                    contentView = (LinearLayout) view.findViewById(Utils.getID("footer", "id"));
+                }
+                
+                if (contentView == null) {
+                    XposedBridge.log("StatusDownload: No suitable container found for icons");
+                    return;
+                }
 
                 contentView.setOrientation(LinearLayout.HORIZONTAL);
+                XposedBridge.log("StatusDownload: Injecting icons into " + contentView.getClass().getName());
 
                 // Share Icon
                 ImageView shareIcon = new ImageView(view.getContext());
@@ -135,6 +161,7 @@ public class StatusDownload extends Feature {
 
                 // Download Icon (only if media)
                 if (fMessage.isMediaFile()) {
+                    XposedBridge.log("StatusDownload: Injecting Download icon");
                     ImageView downloadIcon = new ImageView(view.getContext());
                     LinearLayout.LayoutParams downloadParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
                     downloadParams.gravity = Gravity.CENTER_VERTICAL;
