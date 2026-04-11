@@ -796,13 +796,13 @@ public class Unobfuscator {
 
     public synchronized static Field loadStatusIndexField(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getField(loader, () -> {
-            var method = loadStatusActivePage(loader);
-            var methodData = dexkit.getMethodData(DexSignUtil.getMethodDescriptor(method));
+            Method method = loadStatusActivePage(loader);
+            MethodData methodData = dexkit.getMethodData(DexSignUtil.getMethodDescriptor(method));
             if (methodData == null) throw new Exception("StatusIndex method data not found");
-            var usingFields = methodData.getUsingFields();
+            List<UsingFieldData> usingFields = methodData.getUsingFields();
             // The index field is typically an int field modified in setPageActive
-            for (var ufield : usingFields) {
-                var field = ufield.getField().getFieldInstance(loader);
+            for (UsingFieldData ufield : usingFields) {
+                Field field = ufield.getField().getFieldInstance(loader);
                 if (field.getType() == int.class) {
                     XposedBridge.log("Status: Found StatusIndex field: " + field.getName());
                     return field;
@@ -814,11 +814,11 @@ public class Unobfuscator {
 
     public synchronized static Field loadStatusListField(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getField(loader, () -> {
-            var clazz = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
+            Class<?> clazz = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
             // The status list is typically the only List field in this class or its base
-            var fields = ReflectionUtils.findAllFieldsUsingFilter(clazz, f -> List.class.isAssignableFrom(f.getType()));
+            Field[] fields = ReflectionUtils.findAllFieldsUsingFilter(clazz, f -> List.class.isAssignableFrom(f.getType()));
             if (fields.length == 0) {
-                var base = clazz.getSuperclass();
+                Class<?> base = clazz.getSuperclass();
                 if (base != null) fields = ReflectionUtils.findAllFieldsUsingFilter(base, f -> List.class.isAssignableFrom(f.getType()));
             }
             if (fields.length == 0) throw new Exception("StatusList field not found");
@@ -829,9 +829,9 @@ public class Unobfuscator {
 
     public synchronized static Class<?> loadMenuManagerClass(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getClass(classLoader, () -> {
-            var methods = findAllMethodUsingStrings(classLoader, StringMatchType.Contains,
+            Method[] methods = findAllMethodUsingStrings(classLoader, StringMatchType.Contains,
                     "MenuPopupHelper cannot be used without an anchor");
-            for (var method : methods) {
+            for (Method method : methods) {
                 if (method.getReturnType() == void.class)
                     return method.getDeclaringClass();
             }
@@ -841,9 +841,9 @@ public class Unobfuscator {
 
     public synchronized static Method loadMenuStatusMethod(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(loader, () -> {
-            var id = Utils.getID("menuitem_conversations_message_contact", "id");
+            int id = Utils.getID("menuitem_conversations_message_contact", "id");
             XposedBridge.log("MenuStatus: Searching for method using ID: " + Integer.toHexString(id) + " (menuitem_conversations_message_contact)");
-            var methods = dexkit.findMethod(new FindMethod().matcher(new MethodMatcher().addUsingNumber(id)));
+            MethodDataList methods = dexkit.findMethod(new FindMethod().matcher(new MethodMatcher().addUsingNumber(id)));
             if (methods.isEmpty()) {
                 XposedBridge.log("MenuStatus: Initial ID search failed, trying broader matcher");
                 methods = dexkit.findMethod(FindMethod.create().matcher(MethodMatcher.create().addUsingNumber(id)));
@@ -857,11 +857,11 @@ public class Unobfuscator {
 
     public synchronized static Method loadStatusContextMenuMethod(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(loader, () -> {
-            var clazz = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
-            var method = ReflectionUtils.findMethodUsingFilterIfExists(clazz, m -> m.getName().equals("onCreateContextMenu"));
+            Class<?> clazz = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
+            Method method = ReflectionUtils.findMethodUsingFilterIfExists(clazz, m -> m.getName().equals("onCreateContextMenu"));
             if (method == null) {
                 XposedBridge.log("Status: onCreateContextMenu not found in StatusPlaybackContactFragment, searching in base");
-                var base = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackBaseFragment");
+                Class<?> base = loader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackBaseFragment");
                 method = ReflectionUtils.findMethodUsingFilterIfExists(base, m -> m.getName().equals("onCreateContextMenu"));
             }
             if (method == null) throw new Exception("StatusContextMenu method not found");

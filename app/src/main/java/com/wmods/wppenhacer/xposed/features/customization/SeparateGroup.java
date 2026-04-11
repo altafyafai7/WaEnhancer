@@ -21,13 +21,16 @@ import com.wmods.wppenhacer.xposed.utils.DebugUtils;
 import com.wmods.wppenhacer.xposed.utils.ReflectionUtils;
 import com.wmods.wppenhacer.xposed.utils.Utils;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -85,28 +88,28 @@ public class SeparateGroup extends Feature {
 
     private void hookTabCount() throws Exception {
 
-        var runMethod = Unobfuscator.loadTabCountMethod(classLoader);
+        Method runMethod = Unobfuscator.loadTabCountMethod(classLoader);
         XposedBridge.log("SeparateGroup: Hooking TabCount method: " + runMethod.getName());
 
-        var enableCountMethod = Unobfuscator.loadEnableCountTabMethod(classLoader);
-        var constructor1 = Unobfuscator.loadEnableCountTabConstructor1(classLoader);
-        var constructor2 = Unobfuscator.loadEnableCountTabConstructor2(classLoader);
-        var constructor3 = Unobfuscator.loadEnableCountTabConstructor3(classLoader);
+        Method enableCountMethod = Unobfuscator.loadEnableCountTabMethod(classLoader);
+        Constructor<?> constructor1 = Unobfuscator.loadEnableCountTabConstructor1(classLoader);
+        Constructor<?> constructor2 = Unobfuscator.loadEnableCountTabConstructor2(classLoader);
+        Constructor<?> constructor3 = Unobfuscator.loadEnableCountTabConstructor3(classLoader);
         constructor3.setAccessible(true);
 
         XposedBridge.hookMethod(enableCountMethod, new XC_MethodHook() {
             @Override
             @SuppressLint({"Range", "Recycle"})
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                var indexTab = (int) param.args[2];
+                int indexTab = (int) param.args[2];
                 if (indexTab == tabs.indexOf(CHATS)) {
                     XposedBridge.log("SeparateGroup: Updating tab badge counts at index: " + indexTab);
-                    var chatCount = 0;
-                    var groupCount = 0;
+                    int chatCount = 0;
+                    int groupCount = 0;
                     synchronized (SeparateGroup.class) {
-                        var db = MessageStore.getInstance().getDatabase();
-                        var sql = "SELECT * FROM chat WHERE unseen_message_count != 0";
-                        var cursor = db.rawQuery(sql, null);
+                        android.database.sqlite.SQLiteDatabase db = MessageStore.getInstance().getDatabase();
+                        String sql = "SELECT * FROM chat WHERE unseen_message_count != 0";
+                        android.database.Cursor cursor = db.rawQuery(sql, null);
                         while (cursor.moveToNext()) {
                             int jid = cursor.getInt(cursor.getColumnIndex("jid_row_id"));
                             int groupType = cursor.getInt(cursor.getColumnIndex("group_type"));
@@ -114,10 +117,10 @@ public class SeparateGroup extends Feature {
                             int chatLocked = cursor.getInt(cursor.getColumnIndex("chat_lock"));
                             if (archived != 0 || (groupType != 0 && groupType != 6) || chatLocked != 0)
                                 continue;
-                            var sql2 = "SELECT * FROM jid WHERE _id == ?";
-                            var cursor1 = db.rawQuery(sql2, new String[]{String.valueOf(jid)});
+                            String sql2 = "SELECT * FROM jid WHERE _id == ?";
+                            android.database.Cursor cursor1 = db.rawQuery(sql2, new String[]{String.valueOf(jid)});
                             if (!cursor1.moveToFirst()) continue;
-                            var server = cursor1.getString(cursor1.getColumnIndex("server"));
+                            String server = cursor1.getString(cursor1.getColumnIndex("server"));
                             if (server.equals("g.us")) {
                                 groupCount++;
                             } else {
@@ -128,13 +131,13 @@ public class SeparateGroup extends Feature {
                         cursor.close();
                     }
                     if (tabs.contains(CHATS) && tabInstances.containsKey(CHATS)) {
-                        var instance12 = chatCount <= 0 ? constructor3.newInstance() : constructor2.newInstance(chatCount);
-                        var instance22 = constructor1.newInstance(instance12);
+                        Object instance12 = chatCount <= 0 ? constructor3.newInstance() : constructor2.newInstance(chatCount);
+                        Object instance22 = constructor1.newInstance(instance12);
                         param.args[1] = instance22;
                     }
                     if (tabs.contains(GROUPS) && tabInstances.containsKey(GROUPS)) {
-                        var instance2 = groupCount <= 0 ? constructor3.newInstance() : constructor2.newInstance(groupCount);
-                        var instance1 = constructor1.newInstance(instance2);
+                        Object instance2 = groupCount <= 0 ? constructor3.newInstance() : constructor2.newInstance(groupCount);
+                        Object instance1 = constructor1.newInstance(instance2);
                         enableCountMethod.invoke(param.thisObject, param.args[0], instance1, tabs.indexOf(GROUPS));
                     }
                 }
@@ -143,12 +146,12 @@ public class SeparateGroup extends Feature {
     }
 
     private void hookTabIcon() throws Exception {
-        var iconTabMethod = Unobfuscator.loadIconTabMethod(classLoader);
-        var menuAddAndroidX = Unobfuscator.loadAddMenuAndroidX(classLoader);
+        Method iconTabMethod = Unobfuscator.loadIconTabMethod(classLoader);
+        Method menuAddAndroidX = Unobfuscator.loadAddMenuAndroidX(classLoader);
 
         XposedBridge.hookMethod(iconTabMethod, new XC_MethodHook() {
 
-                    private Unhook hooked;
+                    private XC_MethodHook.Unhook hooked;
 
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -176,11 +179,11 @@ public class SeparateGroup extends Feature {
 
     @SuppressLint("ResourceType")
     private void hookTabName() throws Exception {
-        var tabNameMethod = Unobfuscator.loadTabNameMethod(classLoader);
+        Method tabNameMethod = Unobfuscator.loadTabNameMethod(classLoader);
         XposedBridge.hookMethod(tabNameMethod, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                var tab = (int) param.args[0];
+                int tab = (int) param.args[0];
                 if (tab == GROUPS) {
                     param.setResult(UnobfuscatorCache.getInstance().getString("groups"));
                 }
@@ -189,36 +192,36 @@ public class SeparateGroup extends Feature {
     }
 
     private void hookTabInstance(Class<?> cFrag) throws Exception {
-        var getTabMethod = Unobfuscator.loadGetTabMethod(classLoader);
+        Method getTabMethod = Unobfuscator.loadGetTabMethod(classLoader);
         XposedBridge.log("SeparateGroup: Hooking GetTab method: " + getTabMethod.getName());
 
-        var methodTabInstance = Unobfuscator.loadTabFragmentMethod(classLoader);
+        Method methodTabInstance = Unobfuscator.loadTabFragmentMethod(classLoader);
         XposedBridge.log("SeparateGroup: Hooking TabFragment list method: " + methodTabInstance.getName());
 
-        var recreateFragmentMethod = Unobfuscator.loadRecreateFragmentConstructor(classLoader);
+        Constructor<?> recreateFragmentMethod = Unobfuscator.loadRecreateFragmentConstructor(classLoader);
 
-        var pattern = Pattern.compile("android:switcher:\\d+:(\\d+)");
+        Pattern pattern = Pattern.compile("android:switcher:\\d+:(\\d+)");
 
         Class<?> FragmentClass = Unobfuscator.loadFragmentClass(classLoader);
 
         XposedBridge.hookMethod(recreateFragmentMethod, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                var string = "";
+                String string = "";
                 if (param.args[0] instanceof Bundle) {
-                    var bundle = (Bundle) param.args[0];
-                    var state = bundle.getParcelable("state");
+                    Bundle bundle = (Bundle) param.args[0];
+                    Object state = bundle.getParcelable("state");
                     if (state == null) return;
                     string = state.toString();
                 } else {
                     string = param.args[2].toString();
                 }
-                var matcher = pattern.matcher(string);
+                Matcher matcher = pattern.matcher(string);
                 if (matcher.find()) {
-                    var tabId = Integer.parseInt(matcher.group(1));
+                    int tabId = Integer.parseInt(matcher.group(1));
                     if (tabId == GROUPS || tabId == CHATS) {
-                        var fragmentField = ReflectionUtils.getFieldByType(param.thisObject.getClass(), FragmentClass);
-                        var convFragment = ReflectionUtils.getObjectField(fragmentField, param.thisObject);
+                        Field fragmentField = ReflectionUtils.getFieldByType(param.thisObject.getClass(), FragmentClass);
+                        Object convFragment = ReflectionUtils.getObjectField(fragmentField, param.thisObject);
                         XposedBridge.log("SeparateGroup: Recreated fragment for tab ID: " + tabId + " -> " + (convFragment != null ? convFragment.getClass().getName() : "null"));
                         tabInstances.put(tabId, convFragment);
                     }
@@ -229,11 +232,11 @@ public class SeparateGroup extends Feature {
         XposedBridge.hookMethod(getTabMethod, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                var index = (int) param.args[0];
+                int index = (int) param.args[0];
                 if (index >= tabs.size()) return;
-                var tabId = tabs.get(index).intValue();
+                int tabId = tabs.get(index).intValue();
                 if (tabId == GROUPS || tabId == CHATS) {
-                    var convFragment = cFrag.newInstance();
+                    Object convFragment = cFrag.newInstance();
                     XposedBridge.log("SeparateGroup: Created new fragment instance for tab ID: " + tabId);
                     param.setResult(convFragment);
                 }
@@ -241,9 +244,9 @@ public class SeparateGroup extends Feature {
 
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                var index = (int) param.args[0];
+                int index = (int) param.args[0];
                 if (index >= tabs.size()) return;
-                var tabId = tabs.get(index).intValue();
+                int tabId = tabs.get(index).intValue();
                 if (tabId == GROUPS || tabId == CHATS) {
                     XposedBridge.log("SeparateGroup: Storing fragment instance for tab ID: " + tabId);
                     tabInstances.put(tabId, param.getResult());
@@ -254,10 +257,10 @@ public class SeparateGroup extends Feature {
         XposedBridge.hookMethod(methodTabInstance, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                var chatsList = (List) param.getResult();
+                List<?> chatsList = (List<?>) param.getResult();
                 if (chatsList == null) return;
                 
-                var resultList = filterChat(param.thisObject, chatsList);
+                List<?> resultList = filterChat(param.thisObject, chatsList);
                 if (resultList != chatsList) {
                     XposedBridge.log("SeparateGroup: Applied filter to chat list. Size: " + chatsList.size() + " -> " + resultList.size());
                     param.setResult(resultList);
@@ -265,7 +268,7 @@ public class SeparateGroup extends Feature {
             }
         });
 
-        var fabintMethod = Unobfuscator.loadFabMethod(classLoader);
+        Method fabintMethod = Unobfuscator.loadFabMethod(classLoader);
         XposedBridge.hookMethod(fabintMethod, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -275,22 +278,22 @@ public class SeparateGroup extends Feature {
             }
         });
 
-        var publishResultsMethod = Unobfuscator.loadGetFiltersMethod(classLoader);
+        Method publishResultsMethod = Unobfuscator.loadGetFiltersMethod(classLoader);
         XposedBridge.hookMethod(publishResultsMethod, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                var filters = param.args[1];
-                var chatsList = (List) XposedHelpers.getObjectField(filters, "values");
+                Object filters = param.args[1];
+                List<?> chatsList = (List<?>) XposedHelpers.getObjectField(filters, "values");
                 if (chatsList == null) return;
 
-                var baseField = ReflectionUtils.getFieldByExtendType(publishResultsMethod.getDeclaringClass(), BaseAdapter.class);
+                Field baseField = ReflectionUtils.getFieldByExtendType(publishResultsMethod.getDeclaringClass(), BaseAdapter.class);
                 if (baseField == null) return;
-                var convField = ReflectionUtils.getFieldByType(baseField.getType(), cFrag);
+                Field convField = ReflectionUtils.getFieldByType(baseField.getType(), cFrag);
                 if (convField == null) return;
                 Object thiz = ReflectionUtils.getObjectField(convField, ReflectionUtils.getObjectField(baseField, param.thisObject));
                 if (thiz == null) return;
                 
-                var resultList = filterChat(thiz, chatsList);
+                List<?> resultList = filterChat(thiz, chatsList);
                 if (resultList != chatsList) {
                     XposedBridge.log("SeparateGroup: Applied filter to search results. Size: " + chatsList.size() + " -> " + resultList.size());
                     XposedHelpers.setObjectField(filters, "values", resultList);
@@ -300,9 +303,9 @@ public class SeparateGroup extends Feature {
         });
     }
 
-    private List filterChat(Object thiz, List chatsList) {
-        var tabChat = tabInstances.get(CHATS);
-        var tabGroup = tabInstances.get(GROUPS);
+    private List<?> filterChat(Object thiz, List<?> chatsList) {
+        Object tabChat = tabInstances.get(CHATS);
+        Object tabGroup = tabInstances.get(GROUPS);
         
         boolean isChatTab = Objects.equals(tabChat, thiz);
         boolean isGroupTab = Objects.equals(tabGroup, thiz);
@@ -312,13 +315,13 @@ public class SeparateGroup extends Feature {
         }
         
         XposedBridge.log("SeparateGroup: Filtering list for " + (isGroupTab ? "GROUPS" : "CHATS") + " tab");
-        var editableChatList = new ArrayListFilter(isGroupTab);
+        ArrayListFilter editableChatList = new ArrayListFilter(isGroupTab);
         editableChatList.addAll(chatsList);
         return editableChatList;
     }
 
     private void hookTabList(@NonNull Class<?> home) throws Exception {
-        var onCreateTabList = Unobfuscator.loadTabListMethod(classLoader);
+        Method onCreateTabList = Unobfuscator.loadTabListMethod(classLoader);
         XposedBridge.hookMethod(onCreateTabList, new XC_MethodHook() {
             @Override
             @SuppressWarnings("unchecked")
@@ -332,12 +335,12 @@ public class SeparateGroup extends Feature {
 
                 for (Object obj : searchObjects) {
                     Class<?> targetClass = (obj != null) ? obj.getClass() : home;
-                    var fields = ReflectionUtils.findAllFieldsUsingFilter(targetClass, f -> List.class.isAssignableFrom(f.getType()));
+                    Field[] fields = ReflectionUtils.findAllFieldsUsingFilter(targetClass, f -> List.class.isAssignableFrom(f.getType()));
                     
-                    for (var field : fields) {
+                    for (Field field : fields) {
                         try {
                             field.setAccessible(true);
-                            var value = (ArrayList<Integer>) field.get(obj);
+                            ArrayList<Integer> value = (ArrayList<Integer>) field.get(obj);
                             if (value != null && !value.isEmpty() && (value.contains(CHATS) || value.contains(STATUS))) {
                                 tabs = value;
                                 XposedBridge.log("SeparateGroup: Found tabs list in field: " + targetClass.getName() + "->" + field.getName());
@@ -387,8 +390,8 @@ public class SeparateGroup extends Feature {
         }
 
         @Override
-        public boolean addAll(@NonNull Collection c) {
-            for (var chat : c) {
+        public boolean addAll(@NonNull Collection<?> c) {
+            for (Object chat : c) {
                 if (checkGroup(chat)) {
                     super.add(chat);
                 }
@@ -398,7 +401,7 @@ public class SeparateGroup extends Feature {
 
         private boolean checkGroup(Object chat) {
             // Strategy 1: Find JID field by type
-            var jidField = ReflectionUtils.findFieldUsingFilterIfExists(chat.getClass(), f -> FMessageWpp.UserJid.TYPE_JID.isAssignableFrom(f.getType()));
+            Field jidField = ReflectionUtils.findFieldUsingFilterIfExists(chat.getClass(), f -> FMessageWpp.UserJid.TYPE_JID.isAssignableFrom(f.getType()));
             Object jidObject = null;
             
             if (jidField != null) {
@@ -407,9 +410,9 @@ public class SeparateGroup extends Feature {
 
             // Strategy 2: Aggressive scan if type-based discovery failed or returned null
             if (jidObject == null) {
-                for (var field : chat.getClass().getDeclaredFields()) {
+                for (Field field : chat.getClass().getDeclaredFields()) {
                     if (field.getType().isPrimitive()) continue;
-                    var obj = ReflectionUtils.getObjectField(field, chat);
+                    Object obj = ReflectionUtils.getObjectField(field, chat);
                     if (obj != null && XposedHelpers.findMethodExactIfExists(obj.getClass(), "getServer") != null) {
                         jidObject = obj;
                         break;
@@ -422,7 +425,7 @@ public class SeparateGroup extends Feature {
                 return true;
             }
 
-            var userJid = new FMessageWpp.UserJid(jidObject);
+            FMessageWpp.UserJid userJid = new FMessageWpp.UserJid(jidObject);
             boolean isGroupJid = userJid.isGroup() || userJid.isBroadcast();
             
             if (isGroup) return isGroupJid;

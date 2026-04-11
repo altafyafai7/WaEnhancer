@@ -33,15 +33,15 @@ public class MenuStatusListener extends Feature {
     @Override
     public void doHook() throws Throwable {
 
-        var menuStatusMethod = Unobfuscator.loadStatusContextMenuMethod(classLoader);
+        Method menuStatusMethod = Unobfuscator.loadStatusContextMenuMethod(classLoader);
         logDebug("MenuStatus method: " + menuStatusMethod.getName());
-        var menuManagerClass = Unobfuscator.loadMenuManagerClass(classLoader);
+        Class<?> menuManagerClass = Unobfuscator.loadMenuManagerClass(classLoader);
 
         Class<?> StatusPlaybackBaseFragmentClass = classLoader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackBaseFragment");
         Class<?> StatusPlaybackContactFragmentClass = classLoader.loadClass("com.whatsapp.status.playback.fragment.StatusPlaybackContactFragment");
         
-        var listStatusField = Unobfuscator.loadStatusListField(classLoader);
-        var indexStatusField = Unobfuscator.loadStatusIndexField(classLoader);
+        Field listStatusField = Unobfuscator.loadStatusListField(classLoader);
+        Field indexStatusField = Unobfuscator.loadStatusIndexField(classLoader);
 
         XposedBridge.hookMethod(menuStatusMethod, new XC_MethodHook() {
             @Override
@@ -56,7 +56,7 @@ public class MenuStatusListener extends Feature {
                 }
                 
                 if (fragmentInstance == null) {
-                    var fieldObjects = Arrays.stream(param.method.getDeclaringClass().getDeclaredFields()).map(field -> ReflectionUtils.getObjectField(field, param.thisObject)).filter(Objects::nonNull).collect(Collectors.toList());
+                    List<Object> fieldObjects = Arrays.stream(param.method.getDeclaringClass().getDeclaredFields()).map(field -> ReflectionUtils.getObjectField(field, param.thisObject)).filter(Objects::nonNull).collect(Collectors.toList());
                     fragmentInstance = fieldObjects.stream().filter(StatusPlaybackBaseFragmentClass::isInstance).findFirst().orElse(null);
                 }
                 
@@ -73,17 +73,17 @@ public class MenuStatusListener extends Feature {
                     return;
                 }
                 int index = (int) indexObj;
-                List listStatus = (List) ReflectionUtils.getObjectField(listStatusField, fragmentInstance);
+                List<?> listStatus = (List<?>) ReflectionUtils.getObjectField(listStatusField, fragmentInstance);
                 
                 if (listStatus == null || index < 0 || index >= listStatus.size()) {
                     XposedBridge.log("MenuStatus: Invalid index (" + index + ") or null list");
                     return;
                 }
 
-                var object = listStatus.get(index);
+                Object object = listStatus.get(index);
                 if (object == null) return;
                 if (!FMessageWpp.TYPE.isInstance(object)) {
-                    var fMessageField = ReflectionUtils.getFieldByExtendType(object.getClass(), FMessageWpp.TYPE);
+                    Field fMessageField = ReflectionUtils.getFieldByExtendType(object.getClass(), FMessageWpp.TYPE);
                     if (fMessageField != null) {
                         object = ReflectionUtils.getObjectField(fMessageField, object);
                     }
@@ -94,10 +94,10 @@ public class MenuStatusListener extends Feature {
                     return;
                 }
 
-                var fMessage = new FMessageWpp(object);
+                FMessageWpp fMessage = new FMessageWpp(object);
 
                 for (onMenuItemStatusListener menuStatus : menuStatuses) {
-                    var menuItem = menuStatus.addMenu(menu, fMessage);
+                    MenuItem menuItem = menuStatus.addMenu(menu, fMessage);
                     if (menuItem == null) continue;
                     menuItem.setOnMenuItemClickListener(item -> {
                         menuStatus.onClick(item, fragmentInstance, fMessage);
