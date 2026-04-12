@@ -53,8 +53,11 @@ public class StatusDownload extends Feature {
     }
 
     public void doHook() throws Exception {
-        if (!prefs.getBoolean("downloadstatus", false))
+        XposedBridge.log("StatusDownload: doHook called");
+        if (!prefs.getBoolean("downloadstatus", false)) {
+            XposedBridge.log("StatusDownload: Feature disabled in settings");
             return;
+        }
 
         var downloadStatus = new MenuStatusListener.onMenuItemStatusListener() {
 
@@ -97,17 +100,21 @@ public class StatusDownload extends Feature {
         menuStatuses.add(sharedMenu);
 
         // Direct Icon Injection - Hook Point 1
-        Method viewButtonMethod = Unobfuscator.loadBlueOnReplayViewButtonMethod(classLoader);
-        Field viewStatusField = Unobfuscator.loadBlueOnReplayViewButtonOutSideField(classLoader);
-        XposedBridge.log("StatusDownload: Hooking viewButtonMethod: " + viewButtonMethod.getName());
+        try {
+            Method viewButtonMethod = Unobfuscator.loadBlueOnReplayViewButtonMethod(classLoader);
+            Field viewStatusField = Unobfuscator.loadBlueOnReplayViewButtonOutSideField(classLoader);
+            XposedBridge.log("StatusDownload: Hooking viewButtonMethod: " + viewButtonMethod.getName());
 
-        XposedBridge.hookMethod(viewButtonMethod, new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                View view = (View) param.getResult();
-                injectIcons(view, param.thisObject, viewStatusField);
-            }
-        });
+            XposedBridge.hookMethod(viewButtonMethod, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    View view = (View) param.getResult();
+                    injectIcons(view, param.thisObject, viewStatusField);
+                }
+            });
+        } catch (Exception e) {
+            XposedBridge.log("StatusDownload: Could not hook viewButtonMethod: " + e.getMessage());
+        }
 
         // Direct Icon Injection - Hook Point 2 (Alternative)
         try {
@@ -122,6 +129,32 @@ public class StatusDownload extends Feature {
             });
         } catch (Exception e) {
             XposedBridge.log("StatusDownload: Could not hook viewStatusMethod: " + e.getMessage());
+        }
+
+        // Direct Icon Injection - Hook Point 3 (Extreme Reliability - UnknownStatusPlayback)
+        try {
+            Method unknownMethod = Unobfuscator.loadUnknownStatusPlaybackMethod(classLoader);
+            XposedBridge.log("StatusDownload: Hooking unknownMethod: " + unknownMethod.getName());
+            XposedBridge.hookMethod(unknownMethod, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    Object fragment = null;
+                    for (Object arg : param.args) {
+                        if (arg != null && arg.getClass().getName().contains("StatusPlayback")) {
+                            fragment = arg;
+                            break;
+                        }
+                    }
+                    if (fragment == null) fragment = param.thisObject;
+                    
+                    if (fragment != null) {
+                        View view = (View) XposedHelpers.callMethod(fragment, "getView");
+                        injectIcons(view, fragment, null);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            XposedBridge.log("StatusDownload: Could not hook unknownMethod: " + e.getMessage());
         }
     }
 
