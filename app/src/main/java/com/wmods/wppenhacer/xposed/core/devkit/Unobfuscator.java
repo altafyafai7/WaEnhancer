@@ -516,6 +516,35 @@ public class Unobfuscator {
         });
     }
 
+    public synchronized static Method loadTabIconMappingMethod(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
+            int chatsIconId = Utils.getID("home_tab_chats_selector", "drawable");
+            if (chatsIconId > 0) {
+                MethodDataList result = dexkit.findMethod(
+                        FindMethod.create().matcher(MethodMatcher.create().returnType(int.class).usingNumbers(chatsIconId)));
+                if (!result.isEmpty()) {
+                    XposedBridge.log("SeparateGroup: Found TabIconMapping using drawable ID: " + chatsIconId);
+                    return result.get(0).getMethodInstance(classLoader);
+                }
+            }
+
+            // Fallback: search for methods using multiple tab-related drawable IDs
+            List<String> iconStrings = List.of("home_tab_chats_selector", "home_tab_status_selector", "home_tab_calls_selector");
+            for (String str : iconStrings) {
+                int id = Utils.getID(str, "drawable");
+                if (id > 0) {
+                    var result = dexkit.findMethod(FindMethod.create().matcher(
+                            MethodMatcher.create().returnType(int.class).usingNumbers(id)));
+                    if (!result.isEmpty()) {
+                        XposedBridge.log("SeparateGroup: Found TabIconMapping using string: " + str);
+                        return result.get(0).getMethodInstance(classLoader);
+                    }
+                }
+            }
+            throw new Exception("TabIconMapping method not found");
+        });
+    }
+
     public synchronized static Method loadFabMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
             ClassData classData = dexkit.getClassData("com.whatsapp.conversationslist.ConversationsFragment");
