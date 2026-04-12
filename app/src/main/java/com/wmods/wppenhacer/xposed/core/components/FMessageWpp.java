@@ -73,9 +73,21 @@ public class FMessageWpp {
             broadcastField = Unobfuscator.loadBroadcastTagField(classLoader);
             getFieldIdMessage = Unobfuscator.loadSetEditMessageField(classLoader);
 
-            UserJid.TYPE_GROUPJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.GroupJid");
-            UserJid.TYPE_BROADCASTJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.BroadcastJid");
-            UserJid.TYPE_NEWSLETTERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.NewsletterJid");
+            try {
+                UserJid.TYPE_GROUPJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.GroupJid");
+            } catch (Exception e) {
+                XposedBridge.log("Core: GroupJid class not found");
+            }
+            try {
+                UserJid.TYPE_BROADCASTJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.BroadcastJid");
+            } catch (Exception e) {
+                XposedBridge.log("Core: BroadcastJid class not found");
+            }
+            try {
+                UserJid.TYPE_NEWSLETTERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.NewsletterJid");
+            } catch (Exception e) {
+                XposedBridge.log("Core: NewsletterJid class not found");
+            }
 
             UserJid.getRawStringMethod = ReflectionUtils.findMethodUsingFilter(UserJid.TYPE_JID,
                     method -> method.getName().equals("getRawString") && method.getParameterCount() == 0 && method.getReturnType() == String.class);

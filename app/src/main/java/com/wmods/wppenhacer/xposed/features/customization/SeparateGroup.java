@@ -76,6 +76,33 @@ public class SeparateGroup extends Feature {
         // Setting group tab name
         hookTabName();
 
+        // Direct TabLayout Hook (Definitive fix for icon visibility)
+        try {
+            Class<?> TabLayoutClass = XposedHelpers.findClass("com.google.android.material.tabs.TabLayout", classLoader);
+            Class<?> TabClass = XposedHelpers.findClass("com.google.android.material.tabs.TabLayout$Tab", classLoader);
+            XposedBridge.hookMethod(XposedHelpers.findMethodExact(TabLayoutClass, "addTab", TabClass), new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    Object tab = param.args[0];
+                    int position = (int) XposedHelpers.callMethod(tab, "getPosition");
+                    XposedBridge.log("SeparateGroup: TabLayout.addTab at position: " + position);
+                    
+                    if (position == tabs.indexOf(GROUPS)) {
+                        int iconId = Utils.getID("home_tab_communities_selector", "drawable");
+                        if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
+                        if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
+                        
+                        if (iconId > 0) {
+                            XposedBridge.log("SeparateGroup: Forcing icon " + iconId + " for tab at position " + position);
+                            XposedHelpers.callMethod(tab, "setIcon", iconId);
+                        }
+                    }
+                }
+            });
+        } catch (Exception e) {
+            XposedBridge.log("SeparateGroup: Could not hook TabLayout: " + e.getMessage());
+        }
+
         // Setting tab count
         hookTabCount();
     }
@@ -229,12 +256,16 @@ public class SeparateGroup extends Feature {
     @SuppressLint("ResourceType")
     private void hookTabName() throws Exception {
         Method tabNameMethod = Unobfuscator.loadTabNameMethod(classLoader);
+        XposedBridge.log("SeparateGroup: Hooking TabName method: " + tabNameMethod.getName());
         XposedBridge.hookMethod(tabNameMethod, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                int tab = (int) param.args[0];
-                if (tab == GROUPS) {
-                    param.setResult(UnobfuscatorCache.getInstance().getString("groups"));
+                if (param.args.length > 0 && param.args[0] instanceof Integer) {
+                    int tabId = (int) param.args[0];
+                    XposedBridge.log("SeparateGroup: TabName requested for ID: " + tabId);
+                    if (tabId == GROUPS) {
+                        param.setResult(UnobfuscatorCache.getInstance().getString("groups"));
+                    }
                 }
             }
         });
