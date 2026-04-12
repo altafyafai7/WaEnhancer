@@ -148,6 +148,7 @@ public class SeparateGroup extends Feature {
     private void hookTabIcon() throws Exception {
         Method iconTabMethod = Unobfuscator.loadIconTabMethod(classLoader);
         Method menuAddAndroidX = Unobfuscator.loadAddMenuAndroidX(classLoader);
+        XposedBridge.log("SeparateGroup: Hooking IconTab method: " + iconTabMethod.getName());
 
         XposedBridge.hookMethod(iconTabMethod, new XC_MethodHook() {
 
@@ -155,12 +156,22 @@ public class SeparateGroup extends Feature {
 
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        XposedBridge.log("SeparateGroup: iconTabMethod beforeHookedMethod");
                         hooked = XposedBridge.hookMethod(menuAddAndroidX, new XC_MethodHook() {
                             @Override
                             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                                 if (param.args.length > 2 && ((int) param.args[1]) == GROUPS) {
                                     MenuItem menuItem = (MenuItem) param.getResult();
-                                    menuItem.setIcon(Utils.getID("home_tab_communities_selector", "drawable"));
+                                    if (menuItem == null) return;
+                                    
+                                    int iconId = Utils.getID("home_tab_communities_selector", "drawable");
+                                    if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
+                                    if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
+                                    
+                                    XposedBridge.log("SeparateGroup: Setting icon for GROUPS tab. ID: " + iconId);
+                                    if (iconId > 0) {
+                                        menuItem.setIcon(iconId);
+                                    }
                                 }
                             }
                         });
