@@ -72,6 +72,14 @@ public class FMessageWpp {
             abstractMediaMessageClass = Unobfuscator.loadAbstractMediaMessageClass(classLoader);
             broadcastField = Unobfuscator.loadBroadcastTagField(classLoader);
             getFieldIdMessage = Unobfuscator.loadSetEditMessageField(classLoader);
+
+            UserJid.TYPE_GROUPJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.GroupJid");
+            UserJid.TYPE_BROADCASTJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.BroadcastJid");
+            UserJid.TYPE_NEWSLETTERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.NewsletterJid");
+
+            UserJid.getRawStringMethod = ReflectionUtils.findMethodUsingFilter(UserJid.TYPE_JID,
+                    method -> method.getName().equals("getRawString") && method.getParameterCount() == 0 && method.getReturnType() == String.class);
+
             XposedBridge.log("Core: All FMessage components initialized successfully");
         } catch (Exception e) {
             XposedBridge.log("Core: Initialization FAILED");
@@ -316,6 +324,10 @@ public class FMessageWpp {
         public static Class<?> TYPE_USERJID;
         public static Class<?> TYPE_JID;
         public static Class<?> TYPE_PHONEUSERJID;
+        public static Class<?> TYPE_GROUPJID;
+        public static Class<?> TYPE_BROADCASTJID;
+        public static Class<?> TYPE_NEWSLETTERJID;
+        public static Method getRawStringMethod;
 
         public Object phoneJid;
 
@@ -341,7 +353,11 @@ public class FMessageWpp {
             if (lidOrJid == null) return;
             String raw;
             try {
-                raw = (String) XposedHelpers.callMethod(lidOrJid, "getRawString");
+                if (getRawStringMethod != null) {
+                    raw = (String) getRawStringMethod.invoke(lidOrJid);
+                } else {
+                    raw = (String) XposedHelpers.callMethod(lidOrJid, "getRawString");
+                }
             } catch (Throwable ignored) {
                 return;
             }
@@ -364,17 +380,35 @@ public class FMessageWpp {
         @Nullable
         public String getPhoneRawString() {
             if (this.phoneJid == null) return null;
-            String raw = (String) XposedHelpers.callMethod(this.phoneJid, "getRawString");
-            if (raw == null) return null;
-            return raw.replaceFirst("\\.[\\d:]+@", "@");
+            try {
+                String raw;
+                if (getRawStringMethod != null) {
+                    raw = (String) getRawStringMethod.invoke(this.phoneJid);
+                } else {
+                    raw = (String) XposedHelpers.callMethod(this.phoneJid, "getRawString");
+                }
+                if (raw == null) return null;
+                return raw.replaceFirst("\\.[\\d:]+@", "@");
+            } catch (Exception e) {
+                return null;
+            }
         }
 
         @Nullable
         public String getUserRawString() {
-            if (this.phoneJid == null) return null;
-            String raw = (String) XposedHelpers.callMethod(this.userJid, "getRawString");
-            if (raw == null) return null;
-            return raw.replaceFirst("\\.[\\d:]+@", "@");
+            if (this.userJid == null) return null;
+            try {
+                String raw;
+                if (getRawStringMethod != null) {
+                    raw = (String) getRawStringMethod.invoke(this.userJid);
+                } else {
+                    raw = (String) XposedHelpers.callMethod(this.userJid, "getRawString");
+                }
+                if (raw == null) return null;
+                return raw.replaceFirst("\\.[\\d:]+@", "@");
+            } catch (Exception e) {
+                return null;
+            }
         }
 
         @Nullable
@@ -409,19 +443,21 @@ public class FMessageWpp {
         }
 
         public boolean isNewsletter() {
+            if (TYPE_NEWSLETTERJID != null && TYPE_NEWSLETTERJID.isInstance(this.phoneJid)) return true;
             String raw = getPhoneRawString();
             if (raw == null) return false;
             return raw.endsWith("@newsletter");
         }
 
         public boolean isBroadcast() {
+            if (TYPE_BROADCASTJID != null && TYPE_BROADCASTJID.isInstance(this.phoneJid)) return true;
             String raw = getPhoneRawString();
             if (raw == null) return false;
             return raw.endsWith("@broadcast");
         }
 
         public boolean isGroup() {
-            if (this.phoneJid == null) return false;
+            if (TYPE_GROUPJID != null && TYPE_GROUPJID.isInstance(this.phoneJid)) return true;
             String str = getPhoneRawString();
             if (str == null) return false;
             return str.endsWith("@g.us");

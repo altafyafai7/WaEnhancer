@@ -416,6 +416,7 @@ public class SeparateGroup extends Feature {
 
         private final boolean isGroup;
         private static final HashMap<Class<?>, Field> jidFieldCache = new HashMap<>();
+        private static final java.util.Map<Object, Boolean> jidIsGroupCache = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
 
         public ArrayListFilter(boolean isGroup) {
             this.isGroup = isGroup;
@@ -479,13 +480,15 @@ public class SeparateGroup extends Feature {
             }
 
             if (jidObject == null) {
-                // We keep log but limited to avoid spamming if discovery fails
-                // XposedBridge.log("SeparateGroup: Could not find JID in chat object of class " + clazz.getName());
                 return true;
             }
 
-            FMessageWpp.UserJid userJid = new FMessageWpp.UserJid(jidObject);
-            boolean isGroupJid = userJid.isGroup() || userJid.isBroadcast();
+            Boolean isGroupJid = jidIsGroupCache.get(jidObject);
+            if (isGroupJid == null) {
+                FMessageWpp.UserJid userJid = new FMessageWpp.UserJid(jidObject);
+                isGroupJid = userJid.isGroup() || userJid.isBroadcast();
+                jidIsGroupCache.put(jidObject, isGroupJid);
+            }
             
             if (isGroup) return isGroupJid;
             return !isGroupJid;
