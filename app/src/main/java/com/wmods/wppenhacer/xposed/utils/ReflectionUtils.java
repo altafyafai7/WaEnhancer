@@ -249,6 +249,7 @@ public class ReflectionUtils {
 
     public static Object getObjectField(Field field, Object thisObject) {
         try {
+            if (!field.isAccessible()) field.setAccessible(true);
             return field.get(thisObject);
         } catch (Exception e) {
             return null;

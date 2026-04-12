@@ -2,4 +2,7 @@
 * Added support for WA/WB 2.26.13.xx
 * Added Direct Download & Share icons to status playback
 * Fixed Groups tab separation and icon mapping
+* Optimized chat filtering performance (cached JID discovery)
+* Optimized badge count SQL query (JOIN optimization)
+* Improved discovery for tab icon mapping methods
 * Improved UI resilience and obfuscation discovery

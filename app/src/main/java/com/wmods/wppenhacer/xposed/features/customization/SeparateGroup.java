@@ -108,25 +108,25 @@ public class SeparateGroup extends Feature {
                     int groupCount = 0;
                     synchronized (SeparateGroup.class) {
                         android.database.sqlite.SQLiteDatabase db = MessageStore.getInstance().getDatabase();
-                        String sql = "SELECT * FROM chat WHERE unseen_message_count != 0";
+                        // Optimized query using JOIN to avoid N+1 problem and main thread lag
+                        String sql = "SELECT j.server, c.group_type, c.archived, c.chat_lock " +
+                                     "FROM chat c JOIN jid j ON c.jid_row_id = j._id " +
+                                     "WHERE c.unseen_message_count != 0";
                         android.database.Cursor cursor = db.rawQuery(sql, null);
                         while (cursor.moveToNext()) {
-                            int jid = cursor.getInt(cursor.getColumnIndex("jid_row_id"));
-                            int groupType = cursor.getInt(cursor.getColumnIndex("group_type"));
-                            int archived = cursor.getInt(cursor.getColumnIndex("archived"));
-                            int chatLocked = cursor.getInt(cursor.getColumnIndex("chat_lock"));
+                            String server = cursor.getString(0);
+                            int groupType = cursor.getInt(1);
+                            int archived = cursor.getInt(2);
+                            int chatLocked = cursor.getInt(3);
+                            
                             if (archived != 0 || (groupType != 0 && groupType != 6) || chatLocked != 0)
                                 continue;
-                            String sql2 = "SELECT * FROM jid WHERE _id == ?";
-                            android.database.Cursor cursor1 = db.rawQuery(sql2, new String[]{String.valueOf(jid)});
-                            if (!cursor1.moveToFirst()) continue;
-                            String server = cursor1.getString(cursor1.getColumnIndex("server"));
-                            if (server.equals("g.us")) {
+                            
+                            if ("g.us".equals(server)) {
                                 groupCount++;
                             } else {
                                 chatCount++;
                             }
-                            cursor1.close();
                         }
                         cursor.close();
                     }
@@ -415,6 +415,7 @@ public class SeparateGroup extends Feature {
     public static class ArrayListFilter extends ArrayList<Object> {
 
         private final boolean isGroup;
+        private static final HashMap<Class<?>, Field> jidFieldCache = new HashMap<>();
 
         public ArrayListFilter(boolean isGroup) {
             this.isGroup = isGroup;
@@ -447,28 +448,39 @@ public class SeparateGroup extends Feature {
         }
 
         private boolean checkGroup(Object chat) {
-            // Strategy 1: Find JID field by type
-            Field jidField = ReflectionUtils.findFieldUsingFilterIfExists(chat.getClass(), f -> FMessageWpp.UserJid.TYPE_JID.isAssignableFrom(f.getType()));
-            Object jidObject = null;
+            if (chat == null) return false;
+            Class<?> clazz = chat.getClass();
+            Field jidField = jidFieldCache.get(clazz);
             
+            if (jidField == null && !jidFieldCache.containsKey(clazz)) {
+                // Strategy 1: Find JID field by type
+                jidField = ReflectionUtils.findFieldUsingFilterIfExists(clazz, f -> FMessageWpp.UserJid.TYPE_JID.isAssignableFrom(f.getType()));
+                
+                // Strategy 2: Aggressive scan if type-based discovery failed
+                if (jidField == null) {
+                    for (Field field : clazz.getDeclaredFields()) {
+                        if (field.getType().isPrimitive()) continue;
+                        field.setAccessible(true);
+                        try {
+                            Object obj = field.get(chat);
+                            if (obj != null && XposedHelpers.findMethodExactIfExists(obj.getClass(), "getServer") != null) {
+                                jidField = field;
+                                break;
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+                jidFieldCache.put(clazz, jidField);
+            }
+
+            Object jidObject = null;
             if (jidField != null) {
                 jidObject = ReflectionUtils.getObjectField(jidField, chat);
             }
 
-            // Strategy 2: Aggressive scan if type-based discovery failed or returned null
             if (jidObject == null) {
-                for (Field field : chat.getClass().getDeclaredFields()) {
-                    if (field.getType().isPrimitive()) continue;
-                    Object obj = ReflectionUtils.getObjectField(field, chat);
-                    if (obj != null && XposedHelpers.findMethodExactIfExists(obj.getClass(), "getServer") != null) {
-                        jidObject = obj;
-                        break;
-                    }
-                }
-            }
-
-            if (jidObject == null) {
-                XposedBridge.log("SeparateGroup: Could not find JID in chat object of class " + chat.getClass().getName());
+                // We keep log but limited to avoid spamming if discovery fails
+                // XposedBridge.log("SeparateGroup: Could not find JID in chat object of class " + clazz.getName());
                 return true;
             }
 

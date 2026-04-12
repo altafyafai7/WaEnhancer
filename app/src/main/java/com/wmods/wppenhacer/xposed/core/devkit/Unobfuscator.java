@@ -547,12 +547,26 @@ public class Unobfuscator {
                 }
             } catch (Exception ignored) {}
 
-            // Strategy 3: Broader search for int-returning method using 200 or 300
+            // Strategy 3: Broader search for int-returning method using 200 and having int param
             result = dexkit.findMethod(FindMethod.create().matcher(
                     MethodMatcher.create().returnType(int.class).usingNumbers(200).paramCount(1).paramTypes(int.class)));
             if (!result.isEmpty()) {
                 XposedBridge.log("SeparateGroup: Found TabIconMapping (Strategy 3): " + result.get(0).getName());
                 return result.get(0).getMethodInstance(classLoader);
+            }
+
+            // Strategy 4: Find method in com.whatsapp using numbers 200, 300, 400 or 600
+            for (int id : new int[]{200, 300, 400, 600}) {
+                result = dexkit.findMethod(FindMethod.create().matcher(
+                        MethodMatcher.create().returnType(int.class).usingNumbers(id).paramCount(1)));
+                if (!result.isEmpty()) {
+                    for (var data : result) {
+                        if (data.getDeclaredClassName().contains("com.whatsapp")) {
+                            XposedBridge.log("SeparateGroup: Found TabIconMapping (Strategy 4, ID " + id + "): " + data.getName());
+                            return data.getMethodInstance(classLoader);
+                        }
+                    }
+                }
             }
 
             throw new Exception("TabIconMapping method not found");
