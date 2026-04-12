@@ -1,2 +1,5 @@
-[ADDED]
-* Added support for WA/WB 2.26.11.xx
+[UPDATED]
+* Added support for WA/WB 2.26.13.xx
+* Added Direct Download & Share icons to status playback
+* Fixed Groups tab separation and icon mapping
+* Improved UI resilience and obfuscation discovery

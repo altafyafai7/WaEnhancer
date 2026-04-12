@@ -48,6 +48,22 @@ jobs:
       - name: Get short SHA
         run: echo "SHORT_SHA=`echo ${GITHUB_SHA} | cut -c1-7`" >> $GITHUB_ENV
 
+      - name: Generate dynamic changelog
+        run: |
+          echo "### 🚀 WaEnhancer Build ${{ env.SHORT_SHA }}" > release_body.md
+          echo "" >> release_body.md
+          echo "#### 📝 Latest Changes" >> release_body.md
+          echo "\`\`\`" >> release_body.md
+          git log -1 --pretty=format:"%s%n%b" >> release_body.md
+          echo "\`\`\`" >> release_body.md
+          echo "" >> release_body.md
+          echo "#### ✅ Supported Versions" >> release_body.md
+          echo "* WhatsApp: 2.26.13.xx" >> release_body.md
+          echo "* WhatsApp Business: 2.26.13.xx" >> release_body.md
+          echo "" >> release_body.md
+          echo "#### ✨ Highlights" >> release_body.md
+          cat changelog.txt >> release_body.md
+
       - name: Upload WhatsApp flavor artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -64,22 +80,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ env.GH_TOKEN }}
-          name: WaEnhancer ${{ env.SHORT_SHA }}
-          body_path: changelog.txt
+          name: WaEnhancer ${{ env.SHORT_SHA }} [2.26.13.xx]
+          body_path: release_body.md
           files: |
             app/build/outputs/apk/whatsapp/debug/app-whatsapp-debug.apk
             app/build/outputs/apk/business/debug/app-business-debug.apk
           tag_name: debug-${{ env.SHORT_SHA }}
 
-      - name: Read changelog
+      - name: Read release body
         if: ${{ success() && env.BOT_TOKEN != '' && env.CHANNEL_ID != '' }}
-        id: changelog
+        id: release_body
         uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
-            const changelog = fs.readFileSync('changelog.txt', 'utf8').trim();
-            core.setOutput('content', changelog);
+            const body = fs.readFileSync('release_body.md', 'utf8').trim();
+            core.setOutput('content', body);
 
       - name: Post to Telegram channel
         if: ${{ success() && env.BOT_TOKEN != '' && env.CHANNEL_ID != '' }}
@@ -90,19 +106,19 @@ jobs:
           format: markdown
           disable_web_page_preview: true
           message: |
-            ${{ steps.changelog.outputs.content }}
+            ${{ steps.release_body.outputs.content }}
 
-            Release: https://github.com/${{ github.repository }}/releases/tag/debug-${{ env.SHORT_SHA }}
+            📦 **Release Link:** https://github.com/${{ github.repository }}/releases/tag/debug-${{ env.SHORT_SHA }}
 
       - name: Upload APKs to Telegram
         if: ${{ success() && env.BOT_TOKEN != '' && env.CHANNEL_ID != '' }}
         run: |
           curl -F document=@app/build/outputs/apk/whatsapp/debug/app-whatsapp-debug.apk \
                -F chat_id="${{ env.CHANNEL_ID }}" \
-               -F caption="WhatsApp APK: debug-${{ env.SHORT_SHA }}" \
+               -F caption="🟢 WhatsApp APK (2.26.13.xx)" \
                https://api.telegram.org/bot${{ env.BOT_TOKEN }}/sendDocument
           
           curl -F document=@app/build/outputs/apk/business/debug/app-business-debug.apk \
                -F chat_id="${{ env.CHANNEL_ID }}" \
-               -F caption="Business APK: debug-${{ env.SHORT_SHA }}" \
+               -F caption="🔵 Business APK (2.26.13.xx)" \
                https://api.telegram.org/bot${{ env.BOT_TOKEN }}/sendDocument
