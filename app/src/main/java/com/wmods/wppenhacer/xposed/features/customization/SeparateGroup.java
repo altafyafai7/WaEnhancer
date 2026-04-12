@@ -149,19 +149,23 @@ public class SeparateGroup extends Feature {
         // Direct Mapping Hook (More reliable for modern versions)
         try {
             Method iconMappingMethod = Unobfuscator.loadTabIconMappingMethod(classLoader);
-            XposedBridge.log("SeparateGroup: Hooking IconMapping method: " + iconMappingMethod.getName());
+            XposedBridge.log("SeparateGroup: Hooking IconMapping method: " + iconMappingMethod.getName() + " in class " + iconMappingMethod.getDeclaringClass().getName());
             XposedBridge.hookMethod(iconMappingMethod, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    int tabId = (int) param.args[0];
-                    if (tabId == GROUPS) {
-                        int iconId = Utils.getID("home_tab_communities_selector", "drawable");
-                        if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
-                        if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
-                        
-                        if (iconId > 0) {
-                            XposedBridge.log("SeparateGroup: IconMapping returning " + iconId + " for GROUPS tab");
-                            param.setResult(iconId);
+                    if (param.args.length > 0 && param.args[0] instanceof Integer) {
+                        int tabId = (int) param.args[0];
+                        if (tabId == GROUPS) {
+                            int iconId = Utils.getID("home_tab_communities_selector", "drawable");
+                            if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
+                            if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
+                            
+                            if (iconId > 0) {
+                                XposedBridge.log("SeparateGroup: IconMapping returning " + iconId + " for GROUPS tab");
+                                param.setResult(iconId);
+                            } else {
+                                XposedBridge.log("SeparateGroup: CRITICAL - Could not find any suitable icon for GROUPS tab");
+                            }
                         }
                     }
                 }
@@ -171,45 +175,53 @@ public class SeparateGroup extends Feature {
         }
 
         // Legacy Menu Hook (Fallback)
-        Method iconTabMethod = Unobfuscator.loadIconTabMethod(classLoader);
-        Method menuAddAndroidX = Unobfuscator.loadAddMenuAndroidX(classLoader);
-        XposedBridge.log("SeparateGroup: Hooking Legacy IconTab method: " + iconTabMethod.getName());
+        try {
+            Method iconTabMethod = Unobfuscator.loadIconTabMethod(classLoader);
+            Method menuAddAndroidX = Unobfuscator.loadAddMenuAndroidX(classLoader);
+            XposedBridge.log("SeparateGroup: Hooking Legacy IconTab method: " + iconTabMethod.getName());
 
-        XposedBridge.hookMethod(iconTabMethod, new XC_MethodHook() {
+            XposedBridge.hookMethod(iconTabMethod, new XC_MethodHook() {
 
-                    private XC_MethodHook.Unhook hooked;
+                        private XC_MethodHook.Unhook hooked;
 
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        hooked = XposedBridge.hookMethod(menuAddAndroidX, new XC_MethodHook() {
-                            @Override
-                            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                                if (param.args.length > 2 && ((int) param.args[1]) == GROUPS) {
-                                    MenuItem menuItem = (MenuItem) param.getResult();
-                                    if (menuItem == null) return;
-                                    
-                                    int iconId = Utils.getID("home_tab_communities_selector", "drawable");
-                                    if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
-                                    if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
-                                    
-                                    if (iconId > 0) {
-                                        XposedBridge.log("SeparateGroup: Legacy Hook setting icon " + iconId + " for GROUPS tab");
-                                        menuItem.setIcon(iconId);
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                            XposedBridge.log("SeparateGroup: iconTabMethod (" + param.method.getName() + ") called");
+                            hooked = XposedBridge.hookMethod(menuAddAndroidX, new XC_MethodHook() {
+                                @Override
+                                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                                    if (param.args.length > 2 && param.args[1] instanceof Integer) {
+                                        int id = (int) param.args[1];
+                                        if (id == GROUPS) {
+                                            MenuItem menuItem = (MenuItem) param.getResult();
+                                            if (menuItem == null) return;
+                                            
+                                            int iconId = Utils.getID("home_tab_communities_selector", "drawable");
+                                            if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
+                                            if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
+                                            
+                                            if (iconId > 0) {
+                                                XposedBridge.log("SeparateGroup: Legacy Hook setting icon " + iconId + " for GROUPS tab");
+                                                menuItem.setIcon(iconId);
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        });
-                    }
+                            });
+                        }
 
-                    @SuppressLint("ResourceType")
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        if (hooked != null) {
-                            hooked.unhook();
+                        @SuppressLint("ResourceType")
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            if (hooked != null) {
+                                hooked.unhook();
+                            }
                         }
                     }
-                }
-        );
+            );
+        } catch (Exception e) {
+            XposedBridge.log("SeparateGroup: Could not hook Legacy IconTab: " + e.getMessage());
+        }
     }
 
     @SuppressLint("ResourceType")

@@ -518,19 +518,40 @@ public class Unobfuscator {
 
     public synchronized static Method loadTabIconMappingMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            // Find method returning int and using both 200 and 300 (standard tab IDs)
+            // Strategy 1: Find method returning int and using both 200 and 300 (standard tab IDs)
             MethodDataList result = dexkit.findMethod(FindMethod.create().matcher(
                     MethodMatcher.create().returnType(int.class).usingNumbers(List.of(200, 300))));
             
             if (!result.isEmpty()) {
-                // Filter for methods in standard home/ui packages if possible
                 for (var data : result) {
                     Method m = data.getMethodInstance(classLoader);
                     if (m.getDeclaringClass().getName().contains("com.whatsapp")) {
-                        XposedBridge.log("SeparateGroup: Found TabIconMapping using numbers 200/300: " + m.getName());
+                        XposedBridge.log("SeparateGroup: Found TabIconMapping (Strategy 1): " + m.getName());
                         return m;
                     }
                 }
+            }
+
+            // Strategy 2: Look for method in the same class as GetTabMethod
+            try {
+                Method getTabMethod = loadGetTabMethod(classLoader);
+                Class<?> declaringClass = getTabMethod.getDeclaringClass();
+                var classData = dexkit.getClassData(declaringClass);
+                if (classData != null) {
+                    var methods = classData.findMethod(FindMethod.create().matcher(
+                            MethodMatcher.create().returnType(int.class).paramCount(1).paramTypes(int.class)));
+                    if (!methods.isEmpty()) {
+                        XposedBridge.log("SeparateGroup: Found TabIconMapping (Strategy 2): " + methods.get(0).getName());
+                        return methods.get(0).getMethodInstance(classLoader);
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // Strategy 3: Broader search for int-returning method using 200 or 300
+            result = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().returnType(int.class).usingNumber(200).paramCount(1).paramTypes(int.class)));
+            if (!result.isEmpty()) {
+                XposedBridge.log("SeparateGroup: Found TabIconMapping (Strategy 3): " + result.get(0).getName());
                 return result.get(0).getMethodInstance(classLoader);
             }
 
