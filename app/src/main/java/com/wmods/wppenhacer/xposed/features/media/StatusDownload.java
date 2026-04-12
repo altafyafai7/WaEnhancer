@@ -192,7 +192,10 @@ public class StatusDownload extends Feature {
             FMessageWpp fMessage = new FMessageWpp(fMessageObj);
             if (fMessage.getKey().isFromMe) return;
 
-            LinearLayout contentView = (LinearLayout) view.findViewById(Utils.getID("bottom_sheet", "id"));
+            LinearLayout contentView = (LinearLayout) view.findViewById(Utils.getID("status_header", "id"));
+            if (contentView == null) {
+                contentView = (LinearLayout) view.findViewById(Utils.getID("bottom_sheet", "id"));
+            }
             if (contentView == null) {
                 contentView = (LinearLayout) view.findViewById(Utils.getID("footer", "id"));
             }
@@ -210,37 +213,40 @@ public class StatusDownload extends Feature {
 
             contentView.setTag("wae_status_icons");
             contentView.setOrientation(LinearLayout.HORIZONTAL);
-            XposedBridge.log("StatusDownload: Injecting icons into " + contentView.getClass().getName());
-
+            
             // Share Icon
             int shareId = Utils.getID("ic_action_share", "drawable");
             if (shareId <= 0) shareId = Utils.getID("ic_share", "drawable");
             if (shareId <= 0) shareId = ResId.drawable.camera;
             
+            // Download Icon
+            int downloadId = Utils.getID("download", "drawable");
+            if (downloadId <= 0) downloadId = ResId.drawable.download;
+
+            XposedBridge.log("StatusDownload: Injecting icons into " + contentView.getClass().getName() + ". shareId=" + shareId + ", downloadId=" + downloadId);
+
+            // Share Icon View
             ImageView shareIcon = new ImageView(view.getContext());
             LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
             shareParams.gravity = Gravity.CENTER_VERTICAL;
-            shareParams.setMargins(Utils.dipToPixels(5), Utils.dipToPixels(5), 0, 0);
+            shareParams.setMargins(Utils.dipToPixels(10), 0, 0, 0);
             shareIcon.setLayoutParams(shareParams);
             shareIcon.setImageResource(shareId);
             shareIcon.setBackground(getIconBackground());
             shareIcon.setOnClickListener(v -> sharedStatus(fMessage));
-            contentView.addView(shareIcon, 0);
+            contentView.addView(shareIcon);
 
             // Download Icon (only if media)
             if (fMessage.isMediaFile()) {
-                int downloadId = Utils.getID("download", "drawable");
-                if (downloadId <= 0) downloadId = ResId.drawable.download;
-                
                 ImageView downloadIcon = new ImageView(view.getContext());
                 LinearLayout.LayoutParams downloadParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
                 downloadParams.gravity = Gravity.CENTER_VERTICAL;
-                downloadParams.setMargins(Utils.dipToPixels(5), Utils.dipToPixels(5), 0, 0);
+                downloadParams.setMargins(Utils.dipToPixels(10), 0, 0, 0);
                 downloadIcon.setLayoutParams(downloadParams);
                 downloadIcon.setImageResource(downloadId);
                 downloadIcon.setBackground(getIconBackground());
                 downloadIcon.setOnClickListener(v -> downloadFile(fMessage));
-                contentView.addView(downloadIcon, 0);
+                contentView.addView(downloadIcon);
             }
         } catch (Exception e) {
             XposedBridge.log("StatusDownload: Icon injection error: " + e.getMessage());

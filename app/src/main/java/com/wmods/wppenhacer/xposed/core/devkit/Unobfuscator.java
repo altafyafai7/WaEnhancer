@@ -518,29 +518,22 @@ public class Unobfuscator {
 
     public synchronized static Method loadTabIconMappingMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            int chatsIconId = Utils.getID("home_tab_chats_selector", "drawable");
-            if (chatsIconId > 0) {
-                MethodDataList result = dexkit.findMethod(
-                        FindMethod.create().matcher(MethodMatcher.create().returnType(int.class).usingNumbers(chatsIconId)));
-                if (!result.isEmpty()) {
-                    XposedBridge.log("SeparateGroup: Found TabIconMapping using drawable ID: " + chatsIconId);
-                    return result.get(0).getMethodInstance(classLoader);
-                }
-            }
-
-            // Fallback: search for methods using multiple tab-related drawable IDs
-            List<String> iconStrings = List.of("home_tab_chats_selector", "home_tab_status_selector", "home_tab_calls_selector");
-            for (String str : iconStrings) {
-                int id = Utils.getID(str, "drawable");
-                if (id > 0) {
-                    var result = dexkit.findMethod(FindMethod.create().matcher(
-                            MethodMatcher.create().returnType(int.class).usingNumbers(id)));
-                    if (!result.isEmpty()) {
-                        XposedBridge.log("SeparateGroup: Found TabIconMapping using string: " + str);
-                        return result.get(0).getMethodInstance(classLoader);
+            // Find method returning int and using both 200 and 300 (standard tab IDs)
+            MethodDataList result = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().returnType(int.class).usingNumbers(List.of(200, 300))));
+            
+            if (!result.isEmpty()) {
+                // Filter for methods in standard home/ui packages if possible
+                for (var data : result) {
+                    Method m = data.getMethodInstance(classLoader);
+                    if (m.getDeclaringClass().getName().contains("com.whatsapp")) {
+                        XposedBridge.log("SeparateGroup: Found TabIconMapping using numbers 200/300: " + m.getName());
+                        return m;
                     }
                 }
+                return result.get(0).getMethodInstance(classLoader);
             }
+
             throw new Exception("TabIconMapping method not found");
         });
     }
@@ -934,19 +927,15 @@ public class Unobfuscator {
         });
     }
 
-    /**
-     * @noinspection SimplifyOptionalCallChains
-     */
     public synchronized static Method loadViewOnceDownloadMenuMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            var clazz = XposedHelpers.findClass("com.whatsapp.mediaview.MediaViewFragment", classLoader);
-            var method = Arrays.stream(clazz.getDeclaredMethods()).filter(m -> m.getParameterCount() == 2 &&
-                    Objects.equals(m.getParameterTypes()[0], Menu.class) &&
-                    Objects.equals(m.getParameterTypes()[1], MenuInflater.class) &&
-                    m.getDeclaringClass() == clazz).findFirst();
-            if (!method.isPresent())
+            Method result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, "mediaview/onPrepareOptionsMenu/showDownload");
+            if (result == null) {
+                result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, "MediaViewFragment/onPrepareOptionsMenu");
+            }
+            if (result == null)
                 throw new Exception("ViewOnceDownloadMenu method not found");
-            return method.get();
+            return result;
         });
     }
 
