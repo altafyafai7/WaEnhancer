@@ -549,7 +549,7 @@ public class Unobfuscator {
 
             // Strategy 3: Broader search for int-returning method using 200 or 300
             result = dexkit.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().returnType(int.class).usingNumber(200).paramCount(1).paramTypes(int.class)));
+                    MethodMatcher.create().returnType(int.class).usingNumbers(200).paramCount(1).paramTypes(int.class)));
             if (!result.isEmpty()) {
                 XposedBridge.log("SeparateGroup: Found TabIconMapping (Strategy 3): " + result.get(0).getName());
                 return result.get(0).getMethodInstance(classLoader);
