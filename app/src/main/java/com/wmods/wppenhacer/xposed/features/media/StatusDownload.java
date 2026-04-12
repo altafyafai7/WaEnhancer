@@ -225,7 +225,7 @@ public class StatusDownload extends Feature {
 
             XposedBridge.log("StatusDownload: Injecting icons into " + contentView.getClass().getName() + ". shareId=" + shareId + ", downloadId=" + downloadId);
 
-            // Share Icon View
+            // Share Icon View (Header)
             ImageView shareIcon = new ImageView(view.getContext());
             LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
             shareParams.gravity = Gravity.CENTER_VERTICAL;
@@ -238,6 +238,7 @@ public class StatusDownload extends Feature {
 
             // Download Icon (only if media)
             if (fMessage.isMediaFile()) {
+                // Header Download Icon
                 ImageView downloadIcon = new ImageView(view.getContext());
                 LinearLayout.LayoutParams downloadParams = new LinearLayout.LayoutParams(Utils.dipToPixels(32), Utils.dipToPixels(32));
                 downloadParams.gravity = Gravity.CENTER_VERTICAL;
@@ -247,6 +248,59 @@ public class StatusDownload extends Feature {
                 downloadIcon.setBackground(getIconBackground());
                 downloadIcon.setOnClickListener(v -> downloadFile(fMessage));
                 contentView.addView(downloadIcon);
+
+                // Bottom Right Floating Download Button
+                // Try to find a FrameLayout or RelativeLayout root for floating positioning
+                android.view.ViewGroup floatingRoot = null;
+                if (view instanceof android.widget.FrameLayout || view instanceof android.widget.RelativeLayout) {
+                    floatingRoot = (android.view.ViewGroup) view;
+                } else if (view.getParent() instanceof android.widget.FrameLayout || view.getParent() instanceof android.widget.RelativeLayout) {
+                    floatingRoot = (android.view.ViewGroup) view.getParent();
+                } else if (view instanceof android.view.ViewGroup) {
+                    floatingRoot = (android.view.ViewGroup) view;
+                }
+
+                if (floatingRoot != null) {
+                    if (floatingRoot.findViewWithTag("wae_status_float") != null) {
+                        floatingRoot.removeView(floatingRoot.findViewWithTag("wae_status_float"));
+                    }
+                    
+                    ImageView floatingDownload = new ImageView(view.getContext());
+                    floatingDownload.setTag("wae_status_float");
+                    
+                    // Standard floating action button size (56dp)
+                    int size = Utils.dipToPixels(56);
+                    android.view.ViewGroup.LayoutParams params;
+                    
+                    if (floatingRoot instanceof android.widget.FrameLayout) {
+                        android.widget.FrameLayout.LayoutParams floatParams = new android.widget.FrameLayout.LayoutParams(size, size);
+                        floatParams.gravity = Gravity.BOTTOM | Gravity.END;
+                        floatParams.setMargins(0, 0, Utils.dipToPixels(20), Utils.dipToPixels(80)); // Above reply bar
+                        params = floatParams;
+                    } else {
+                        android.widget.RelativeLayout.LayoutParams floatParams = new android.widget.RelativeLayout.LayoutParams(size, size);
+                        floatParams.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+                        floatParams.addRule(android.widget.RelativeLayout.ALIGN_PARENT_END);
+                        floatParams.setMargins(0, 0, Utils.dipToPixels(20), Utils.dipToPixels(80));
+                        params = floatParams;
+                    }
+                    
+                    floatingDownload.setLayoutParams(params);
+                    floatingDownload.setImageResource(downloadId);
+                    floatingDownload.setPadding(Utils.dipToPixels(12), Utils.dipToPixels(12), Utils.dipToPixels(12), Utils.dipToPixels(12));
+                    
+                    GradientDrawable bg = new GradientDrawable();
+                    bg.setShape(GradientDrawable.OVAL);
+                    bg.setColor(Color.parseColor("#B3000000")); // More opaque black
+                    bg.setStroke(Utils.dipToPixels(2), Color.WHITE);
+                    floatingDownload.setBackground(bg);
+                    
+                    floatingDownload.setOnClickListener(v -> downloadFile(fMessage));
+                    floatingRoot.addView(floatingDownload);
+                    XposedBridge.log("StatusDownload: Injected floating button into " + floatingRoot.getClass().getSimpleName());
+                } else {
+                    XposedBridge.log("StatusDownload: Could not find suitable root for floating button");
+                }
             }
         } catch (Exception e) {
             XposedBridge.log("StatusDownload: Icon injection error: " + e.getMessage());

@@ -931,6 +931,9 @@ public class Unobfuscator {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
             Method result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, "mediaview/onPrepareOptionsMenu/showDownload");
             if (result == null) {
+                result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, "mediaview/onPrepareOptionsMenu");
+            }
+            if (result == null) {
                 result = findFirstMethodUsingStrings(classLoader, StringMatchType.Contains, "MediaViewFragment/onPrepareOptionsMenu");
             }
             if (result == null)
