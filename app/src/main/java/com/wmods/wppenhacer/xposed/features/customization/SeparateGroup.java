@@ -295,11 +295,64 @@ public class SeparateGroup extends Feature {
                     int tabId = (int) param.args[0];
                     XposedBridge.log("SeparateGroup: TabName requested for ID: " + tabId);
                     if (tabId == GROUPS) {
+                        XposedBridge.log("SeparateGroup: TabName(500) caller stack: " + android.util.Log.getStackTraceString(new Throwable()));
                         param.setResult(UnobfuscatorCache.getInstance().getString("groups"));
                     }
                 }
             }
         });
+
+        // Broad Menu Hook
+        try {
+            XposedBridge.hookAllMethods(XposedHelpers.findClass("android.view.Menu", classLoader), "add", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (param.args.length > 1 && param.args[1] instanceof Integer) {
+                        int id = (int) param.args[1];
+                        if (id == GROUPS) {
+                            MenuItem item = (MenuItem) param.getResult();
+                            if (item != null) {
+                                int iconId = Utils.getID("home_tab_communities_selector", "drawable");
+                                if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
+                                if (iconId > 0) {
+                                    XposedBridge.log("SeparateGroup: Setting icon " + iconId + " in Menu.add");
+                                    item.setIcon(iconId);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (Throwable e) {
+            XposedBridge.log("SeparateGroup: Menu hook failed: " + e.getMessage());
+        }
+
+        // Broad NavigationBarItemView Hook
+        try {
+            Class<?> navItemView = XposedHelpers.findClass("com.google.android.material.navigation.NavigationBarItemView", classLoader);
+            XposedBridge.hookAllMethods(navItemView, "setIcon", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    try {
+                        Object itemData = XposedHelpers.getObjectField(param.thisObject, "itemData");
+                        if (itemData != null) {
+                            int id = (int) XposedHelpers.callMethod(itemData, "getItemId");
+                            if (id == GROUPS) {
+                                int iconId = Utils.getID("home_tab_communities_selector", "drawable");
+                                if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
+                                if (iconId > 0 && !(param.args[0] instanceof android.graphics.drawable.Drawable)) {
+                                    XposedBridge.log("SeparateGroup: NavigationBarItemView.setIcon forcing GROUPS icon");
+                                    // We can't easily change the arg if it's already a drawable, 
+                                    // but we can try to set it manually after
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            });
+        } catch (Throwable e) {
+            XposedBridge.log("SeparateGroup: NavigationBar hook failed: " + e.getMessage());
+        }
     }
 
     private void hookTabInstance(Class<?> cFrag) throws Exception {
