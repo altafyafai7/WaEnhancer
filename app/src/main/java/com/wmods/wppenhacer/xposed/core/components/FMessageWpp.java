@@ -53,14 +53,34 @@ public class FMessageWpp {
             TYPE = Unobfuscator.loadFMessageClass(classLoader);
             XposedBridge.log("Core: FMessage class: " + TYPE.getName());
             
-            UserJid.TYPE_USERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.UserJid");
-            UserJid.TYPE_JID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.Jid");
-            UserJid.TYPE_PHONEUSERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.PhoneUserJid");
-            UserJid.TYPE_DEVICEJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.DeviceJid");
+            try {
+                UserJid.TYPE_USERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.UserJid");
+            } catch (Exception e) {
+                XposedBridge.log("Core: UserJid class not found");
+            }
+            try {
+                UserJid.TYPE_JID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.Jid");
+            } catch (Exception e) {
+                XposedBridge.log("Core: Jid class not found");
+            }
+            try {
+                UserJid.TYPE_PHONEUSERJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.PhoneUserJid");
+            } catch (Exception e) {
+                XposedBridge.log("Core: PhoneUserJid class not found");
+            }
+            try {
+                UserJid.TYPE_DEVICEJID = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.DeviceJid");
+            } catch (Exception e) {
+                XposedBridge.log("Core: DeviceJid class not found");
+            }
             XposedBridge.log("Core: JID classes initialized");
 
-            var userJidClass = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.UserJid");
-            userJidMethod = ReflectionUtils.findMethodUsingFilter(TYPE, method -> method.getParameterCount() == 0 && method.getReturnType() == userJidClass);
+            try {
+                var userJidClass = UserJid.TYPE_USERJID != null ? UserJid.TYPE_USERJID : Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.UserJid");
+                userJidMethod = ReflectionUtils.findMethodUsingFilter(TYPE, method -> method.getParameterCount() == 0 && method.getReturnType() == userJidClass);
+            } catch (Exception e) {
+                XposedBridge.log("Core: userJidMethod not found");
+            }
             keyMessage = Unobfuscator.loadMessageKeyField(classLoader);
             Key.TYPE = keyMessage.getType();
             messageMethod = Unobfuscator.loadNewMessageMethod(classLoader);

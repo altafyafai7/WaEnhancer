@@ -173,6 +173,32 @@ public class SeparateGroup extends Feature {
     }
 
     private void hookTabIcon() throws Exception {
+        Method getTabMethod = Unobfuscator.loadGetTabMethod(classLoader);
+        Class<?> mappingClass = getTabMethod.getDeclaringClass();
+        XposedBridge.log("SeparateGroup: Brute force mapping discovery in class: " + mappingClass.getName());
+        
+        for (Method m : mappingClass.getDeclaredMethods()) {
+            if (m.getParameterCount() == 1 && m.getParameterTypes()[0] == int.class && m.getReturnType() == int.class) {
+                XposedBridge.log("SeparateGroup: Brute forcing mapping method: " + m.getName());
+                XposedBridge.hookMethod(m, new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        int tabId = (int) param.args[0];
+                        if (tabId == GROUPS) {
+                            int iconId = Utils.getID("home_tab_communities_selector", "drawable");
+                            if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
+                            if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
+                            
+                            if (iconId > 0) {
+                                XposedBridge.log("SeparateGroup: Brute force setting icon " + iconId + " for GROUPS tab in " + param.method.getName());
+                                param.setResult(iconId);
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
         // Direct Mapping Hook (More reliable for modern versions)
         try {
             Method iconMappingMethod = Unobfuscator.loadTabIconMappingMethod(classLoader);
@@ -183,6 +209,11 @@ public class SeparateGroup extends Feature {
                     if (param.args.length > 0 && param.args[0] instanceof Integer) {
                         int tabId = (int) param.args[0];
                         XposedBridge.log("SeparateGroup: IconMapping called for tab ID: " + tabId);
+                        
+                        if (tabId == CHATS) {
+                            XposedBridge.log("SeparateGroup: IconMapping caller stack: " + android.util.Log.getStackTraceString(new Throwable()));
+                        }
+
                         if (tabId == GROUPS) {
                             int iconId = Utils.getID("home_tab_communities_selector", "drawable");
                             if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
@@ -206,7 +237,7 @@ public class SeparateGroup extends Feature {
         try {
             Method iconTabMethod = Unobfuscator.loadIconTabMethod(classLoader);
             Method menuAddAndroidX = Unobfuscator.loadAddMenuAndroidX(classLoader);
-            XposedBridge.log("SeparateGroup: Hooking Legacy IconTab method: " + iconTabMethod.getName());
+            XposedBridge.log("SeparateGroup: Hooking Legacy IconTab method: " + iconTabMethod.getName() + " in class " + iconTabMethod.getDeclaringClass().getName());
 
             XposedBridge.hookMethod(iconTabMethod, new XC_MethodHook() {
 
