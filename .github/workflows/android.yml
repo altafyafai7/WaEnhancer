@@ -1,8 +1,6 @@
 name: Android CI
 
 on:
-  push:
-    branches: [ "master", "feature/*" ]
   workflow_dispatch:
 jobs:
   build:
@@ -12,7 +10,7 @@ jobs:
       BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.BOT_TOKEN }}
       CHANNEL_ID: ${{ secrets.MESSAGE_ID || secrets.CHANNEL_ID }}
       GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !contains(github.event.head_commit.message, 'Merge')
+    if: github.event_name == 'workflow_dispatch' && !contains(github.event.head_commit.message, 'Merge')
     steps:
       - uses: actions/checkout@v6
       - name: set up JDK 17
