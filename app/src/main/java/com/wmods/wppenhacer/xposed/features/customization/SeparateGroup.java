@@ -78,28 +78,34 @@ public class SeparateGroup extends Feature {
 
         // Direct TabLayout Hook (Definitive fix for icon visibility)
         try {
-            Class<?> TabLayoutClass = XposedHelpers.findClass("com.google.android.material.tabs.TabLayout", classLoader);
-            Class<?> TabClass = XposedHelpers.findClass("com.google.android.material.tabs.TabLayout$Tab", classLoader);
-            XposedBridge.hookMethod(XposedHelpers.findMethodExact(TabLayoutClass, "addTab", TabClass), new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    Object tab = param.args[0];
-                    int position = (int) XposedHelpers.callMethod(tab, "getPosition");
-                    XposedBridge.log("SeparateGroup: TabLayout.addTab at position: " + position);
-                    
-                    if (position == tabs.indexOf(GROUPS)) {
-                        int iconId = Utils.getID("home_tab_communities_selector", "drawable");
-                        if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
-                        if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
-                        
-                        if (iconId > 0) {
-                            XposedBridge.log("SeparateGroup: Forcing icon " + iconId + " for tab at position " + position);
-                            XposedHelpers.callMethod(tab, "setIcon", iconId);
+            Class<?> TabLayoutClass = XposedHelpers.findClassIfExists("com.google.android.material.tabs.TabLayout", classLoader);
+            if (TabLayoutClass != null) {
+                Class<?> TabClass = XposedHelpers.findClassIfExists("com.google.android.material.tabs.TabLayout$Tab", classLoader);
+                if (TabClass == null) TabClass = XposedHelpers.findClassIfExists("com.google.android.material.tabs.TabLayout.Tab", classLoader);
+                
+                if (TabClass != null) {
+                    XposedBridge.hookMethod(XposedHelpers.findMethodExact(TabLayoutClass, "addTab", TabClass), new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            Object tab = param.args[0];
+                            int position = (int) XposedHelpers.callMethod(tab, "getPosition");
+                            XposedBridge.log("SeparateGroup: TabLayout.addTab at position: " + position);
+                            
+                            if (position == tabs.indexOf(GROUPS)) {
+                                int iconId = Utils.getID("home_tab_communities_selector", "drawable");
+                                if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
+                                if (iconId <= 0) iconId = Utils.getID("home_tab_chats_selector", "drawable");
+                                
+                                if (iconId > 0) {
+                                    XposedBridge.log("SeparateGroup: Forcing icon " + iconId + " for tab at position " + position);
+                                    XposedHelpers.callMethod(tab, "setIcon", iconId);
+                                }
+                            }
                         }
-                    }
+                    });
                 }
-            });
-        } catch (Exception e) {
+            }
+        } catch (Throwable e) {
             XposedBridge.log("SeparateGroup: Could not hook TabLayout: " + e.getMessage());
         }
 
@@ -504,15 +510,19 @@ public class SeparateGroup extends Feature {
                     for (Field field : fields) {
                         try {
                             field.setAccessible(true);
-                            ArrayList<Integer> value = (ArrayList<Integer>) field.get(obj);
-                            if (value != null && !value.isEmpty() && (value.contains(CHATS) || value.contains(STATUS))) {
-                                tabs = value;
-                                XposedBridge.log("SeparateGroup: Found tabs list in field: " + targetClass.getName() + "->" + field.getName());
-                                break;
+                            Object valueObj = field.get(obj);
+                            if (valueObj instanceof List) {
+                                List<?> list = (List<?>) valueObj;
+                                if (!list.isEmpty() && list.get(0) instanceof Integer) {
+                                    XposedBridge.log("SeparateGroup: Found potential tab field: " + targetClass.getName() + "->" + field.getName() + " Content: " + list);
+                                    if (list.contains(CHATS) || list.contains(STATUS)) {
+                                        tabs = (ArrayList<Integer>) list;
+                                        XposedBridge.log("SeparateGroup: Using this field as main tabs list");
+                                    }
+                                }
                             }
                         } catch (Exception ignored) {}
                     }
-                    if (tabs != null) break;
                 }
 
                 if (tabs == null) {
@@ -526,6 +536,18 @@ public class SeparateGroup extends Feature {
                 }
             }
         });
+
+        // Catch-all ImageView hook for resource-based icons
+        try {
+            XposedBridge.hookMethod(XposedHelpers.findMethodExact(android.widget.ImageView.class, "setImageResource", int.class), new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    int resId = (int) param.args[0];
+                    // If the app is trying to set a dummy/default icon for our ID, we might see it here
+                    // But usually, it won't even try if mapping failed.
+                }
+            });
+        } catch (Throwable ignored) {}
     }
 
 
