@@ -569,6 +569,28 @@ public class Unobfuscator {
                 }
             }
 
+            // Strategy 5: Look for method returning Drawable using 200
+            result = dexkit.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().returnType(Drawable.class).usingNumbers(200).paramCount(1)));
+            if (!result.isEmpty()) {
+                XposedBridge.log("SeparateGroup: Found TabIconMapping (Strategy 5, Drawable): " + result.get(0).getName());
+                return result.get(0).getMethodInstance(classLoader);
+            }
+
+            // Strategy 6: Search in HomeActivity class for methods returning int and taking int
+            try {
+                Class<?> homeActivity = WppCore.getHomeActivityClass(classLoader);
+                var homeData = dexkit.getClassData(homeActivity);
+                if (homeData != null) {
+                    var methods = homeData.findMethod(FindMethod.create().matcher(
+                            MethodMatcher.create().returnType(int.class).paramCount(1).paramTypes(int.class)));
+                    if (!methods.isEmpty()) {
+                        XposedBridge.log("SeparateGroup: Found TabIconMapping (Strategy 6, HomeActivity): " + methods.get(0).getName());
+                        return methods.get(0).getMethodInstance(classLoader);
+                    }
+                }
+            } catch (Exception ignored) {}
+
             throw new Exception("TabIconMapping method not found");
         });
     }

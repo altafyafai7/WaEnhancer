@@ -155,6 +155,7 @@ public class SeparateGroup extends Feature {
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                     if (param.args.length > 0 && param.args[0] instanceof Integer) {
                         int tabId = (int) param.args[0];
+                        XposedBridge.log("SeparateGroup: IconMapping called for tab ID: " + tabId);
                         if (tabId == GROUPS) {
                             int iconId = Utils.getID("home_tab_communities_selector", "drawable");
                             if (iconId <= 0) iconId = Utils.getID("ic_action_group", "drawable");
@@ -192,6 +193,7 @@ public class SeparateGroup extends Feature {
                                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                                     if (param.args.length > 2 && param.args[1] instanceof Integer) {
                                         int id = (int) param.args[1];
+                                        XposedBridge.log("SeparateGroup: menuAddAndroidX called for ID: " + id);
                                         if (id == GROUPS) {
                                             MenuItem menuItem = (MenuItem) param.getResult();
                                             if (menuItem == null) return;
